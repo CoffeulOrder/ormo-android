@@ -44,3 +44,9 @@ interface Resettable {
 class SessionResetter(private val targets: Collection<Resettable>) {
     fun resetAll() = targets.forEach { it.reset() }
 }
+
+/** 기대되는 실패(틀린 비밀번호, 잠김 등)를 예외 대신 값으로 돌려줄 때 쓰는 결과 */
+sealed interface Outcome<out T, out F> {
+    data class Ok<out T>(val value: T) : Outcome<T, Nothing>
+    data class Fail<out F>(val failure: F) : Outcome<Nothing, F>
+}
