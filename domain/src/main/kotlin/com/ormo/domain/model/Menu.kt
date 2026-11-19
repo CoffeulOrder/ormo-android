@@ -27,6 +27,17 @@ data class OptionGroup(
     val maxSelect: Int? = null,
 )
 
+/** 지점(카페). `code` 는 주문번호 접두어. */
+data class Cafe(
+    val id: String,
+    val name: String,
+    val code: String,
+    val menus: List<MenuItem>,
+)
+
+/** 학교 단위 메뉴 데이터. `version` 이 바뀔 때만 메뉴를 다시 받는다 (menu_version). */
+data class MenuPayload(val version: Long, val cafes: List<Cafe>)
+
 data class MenuItem(
     val id: String,
     val name: String,
