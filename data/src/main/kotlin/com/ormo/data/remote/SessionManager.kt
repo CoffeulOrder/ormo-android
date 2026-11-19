@@ -77,5 +77,13 @@ class SessionManager {
             }
         }
 
-    private fun isRejection(status: Int) = status in 400..499 && status != 408 && status != 429
+    private fun isRejection(status: Int) = isRejectionStatus(status)
+
+    companion object {
+        /**
+         * 리프레시 토큰을 서버가 **거절**한 것으로 볼 상태 코드: 4xx (단 408 시간 초과·429 요청 과다는 일시적).
+         * 5xx·네트워크 오류는 거절이 아니므로 세션을 유지한다. 앱 시작 시 세션 복구([AuthRepository])도 같은 기준을 쓴다.
+         */
+        fun isRejectionStatus(status: Int): Boolean = status in 400..499 && status != 408 && status != 429
+    }
 }
