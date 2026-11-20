@@ -2,6 +2,7 @@ package com.ormo.domain.home
 
 import com.ormo.domain.model.MenuItem
 import com.ormo.domain.rules.CartState
+import com.ormo.domain.rules.OptionRules
 import com.ormo.domain.store.OrderAvailability
 
 /** 카테고리 탭 하나. [key] 가 [RECENT_KEY] 면 '최근 주문' 탭. */
@@ -71,11 +72,14 @@ object MenuHomeRules {
 
     const val UNCATEGORIZED = "기타"
 
-    fun rowState(item: MenuItem, availability: OrderAvailability): MenuRowState = MenuRowState(
-        tappable = !item.soldOut,
-        dimmed = item.soldOut,
-        canAdd = !item.soldOut && availability is OrderAvailability.Available,
-    )
+    fun rowState(item: MenuItem, availability: OrderAvailability): MenuRowState {
+        val soldOut = OptionRules.effectiveSoldOut(item) // 필수 옵션이 모두 품절이면 메뉴도 품절 (2.2)
+        return MenuRowState(
+            tappable = !soldOut,
+            dimmed = soldOut,
+            canAdd = !soldOut && availability is OrderAvailability.Available,
+        )
+    }
 
     /** 장바구니 바는 주문 불가일 때 숨기고, 비었으면 안 보인다 (2.1.2, 2.1.1) */
     fun showCartBar(availability: OrderAvailability, cartItemCount: Int): Boolean =

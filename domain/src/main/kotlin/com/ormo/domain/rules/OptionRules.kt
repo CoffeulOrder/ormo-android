@@ -12,6 +12,13 @@ object OptionRules {
 
     fun hasOptions(item: MenuItem): Boolean = item.optionGroups.isNotEmpty()
 
+    /**
+     * 실질적인 품절 (디자인 2.2): 메뉴 자체가 품절이거나, **필수 옵션 그룹의 선택지가 모두 품절**이면 메뉴도 품절이다
+     * (고를 수 있는 선택지가 없어 담을 수 없으므로). 선택지가 하나도 없는 필수 그룹도 마찬가지.
+     */
+    fun effectiveSoldOut(item: MenuItem): Boolean =
+        item.soldOut || item.optionGroups.any { g -> g.required && g.choices.none { !it.soldOut } }
+
     /** 기본으로 고를 선택지: 첫 번째. 단, 품절이 아닌 선택지가 있으면 그중 첫 번째 (디자인 2.2: 품절 옵션은 고를 수 없음). */
     private fun defaultChoice(group: OptionGroup): OptionChoice? =
         group.choices.firstOrNull { !it.soldOut } ?: group.choices.firstOrNull()
