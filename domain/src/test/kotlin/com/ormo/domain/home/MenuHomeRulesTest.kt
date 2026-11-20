@@ -85,6 +85,13 @@ class MenuHomeRulesTest {
         assertTrue(MenuHomeRules.rowState(m("1", "커피"), OrderAvailability.Available).canAdd)
     }
 
+    @Test fun `필수 옵션이 모두 품절이면 메뉴 줄도 품절처럼 흐리고 안 눌린다`() {
+        val g = com.ormo.domain.model.OptionGroup("t", "온도", true, false, listOf(com.ormo.domain.model.OptionChoice("hot", "HOT", 0, soldOut = true)))
+        val r = MenuHomeRules.rowState(m("1", "커피").copy(optionGroups = listOf(g)), OrderAvailability.Available)
+        assertFalse(r.tappable)
+        assertTrue(r.dimmed)
+    }
+
     @Test fun `장바구니 바는 주문 가능하고 담은 게 있을 때만`() {
         assertTrue(MenuHomeRules.showCartBar(OrderAvailability.Available, 1))
         assertFalse(MenuHomeRules.showCartBar(OrderAvailability.Available, 0))
