@@ -55,7 +55,8 @@ class OrderDetailRulesTest {
         assertEquals("재료가 소진됐어요", v.reasonBox)
         assertEquals("결제한 금액은 결제수단으로 환불해 드려요. 카드사에 따라 3~5일 걸려요", v.infoBox)
         assertEquals(listOf(OrderAction.PICK_OTHER_MENU), v.actions)
-        assertNull(v.steps)
+        // Figma 4.3.3: 첫 칸만 빨강(멈춤)
+        assertEquals(listOf(StepState.STOPPED, StepState.PENDING, StepState.PENDING, StepState.PENDING), v.steps!!.map { it.state })
     }
 
     @Test fun `자동 거절은 정해진 문구`() {
@@ -73,6 +74,7 @@ class OrderDetailRulesTest {
         assertEquals("매장 사정으로 주문이 취소됐어요", store.headline)
         assertEquals("곧 영업이 끝나요", store.reasonBox)
         assertEquals(listOf(OrderAction.PICK_OTHER_MENU), store.actions)
+        assertEquals(StepState.STOPPED, store.steps!!.first().state)
 
         val mine = view(order(OrderStatus.CANCELED, canceledBy = CancelActor.CUSTOMER))
         assertEquals("주문을 취소했어요", mine.headline)

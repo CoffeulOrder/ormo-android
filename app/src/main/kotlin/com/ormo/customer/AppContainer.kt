@@ -58,10 +58,38 @@ class AppContainer(context: Context) {
     val payments = PaymentCoordinator(fakePayments.orderApi, fakePayments.gateway, pendingPayments)
     val paymentMethods = PrefsPaymentMethodStore(context)
 
+    // ---- 주문 확인·내 주문 (M5) ----
+    // 가짜 내 주문 서버: 결제가 승인되면 접수 대기 주문이 생기고, 개발용 상태 패널이 매장 쪽 동작을 대신한다.
+    val fakeOrders = com.ormo.customer.fake.FakeOrderServer()
+    val orders = com.ormo.data.orders.OrderRepository(fakeOrders)
+    val reorderer by lazy { com.ormo.customer.ui.order.Reorderer(menus, cart, stores) { accountKey } }
+    val notificationPrompts = com.ormo.customer.session.PrefsNotificationPromptStore(context)
+
+    init {
+        fakePayments.onPaid = { orderId, draft, method ->
+            val cafe = menus.state.value.payload?.cafes?.firstOrNull { it.id == cart.storeId }
+            val lines = draft.lines.mapNotNull { l ->
+                val item = cafe?.menus?.firstOrNull { it.id == l.menuId } ?: return@mapNotNull null
+                com.ormo.domain.orders.OrderLine(
+                    menuId = item.id,
+                    name = item.name,
+                    choiceIds = l.choiceIds,
+                    optionSummary = com.ormo.domain.rules.OptionRules.optionSummary(item, l.choiceIds),
+                    qty = l.qty,
+                    amount = com.ormo.domain.rules.OptionRules.unitPrice(item, l.choiceIds) * l.qty,
+                )
+            }
+            fakeOrders.create(orderId, cafe?.id ?: cart.storeId.orEmpty(), cafe?.name.orEmpty(), lines, draft.expectedAmount, draft.pickup, method?.label)
+        }
+    }
+
     /** 로그아웃·만료 때 비울 개인 데이터. 마지막 매장·최근 검색어는 계정별로 남기는 게 명세 의도라 넣지 않는다 (PR M3 참고). */
     val resetter = SessionResetter(
         listOf(
             cart,
+            object : Resettable {
+                override fun reset() { orders.reset() } // 다른 계정의 주문이 남지 않게
+            },
             object : Resettable {
                 override fun reset() { appScope.launch { payments.reset() } } // 다른 계정의 진행 중 주문을 이어받지 않도록
             },

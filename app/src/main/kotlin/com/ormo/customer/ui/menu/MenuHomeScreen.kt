@@ -91,8 +91,15 @@ class MenuHomeViewModel(
     val menus: MenuRepository,
     private val stores: StoreRepository,
     private val cartHolder: CartHolder,
+    private val orders: com.ormo.data.orders.OrderRepository,
 ) : ViewModel() {
     private val _ui = MutableStateFlow(MenuHomeUi())
+
+    /** 진행 중 주문이 있으면 하단 주문 현황 바 (2.1.4). 사용자가 닫을 수 없고, 끝나면 사라진다. */
+    val liveBar: StateFlow<com.ormo.domain.orders.LiveBarView?> =
+        kotlinx.coroutines.flow.MutableStateFlow<com.ormo.domain.orders.LiveBarView?>(null).also { out ->
+            viewModelScope.launch { orders.active.collect { out.value = com.ormo.domain.orders.LiveOrderRules.bar(it) } }
+        }
     val ui: StateFlow<MenuHomeUi> = _ui.asStateFlow()
 
     val cart = cartHolder.cart
@@ -101,6 +108,13 @@ class MenuHomeViewModel(
     val messages = _messages.receiveAsFlow()
 
     init {
+        // 진입·복귀·푸시 수신 때 진행 중 주문을 다시 받는다. 화면이 떠 있는 동안은 주기적으로 (진행 중이면 5초, 아니면 20초)
+        viewModelScope.launch {
+            while (true) {
+                orders.refreshActive()
+                kotlinx.coroutines.delay(if (orders.active.value.isNotEmpty()) 5_000 else 20_000)
+            }
+        }
         viewModelScope.launch {
             loadStore()
             menus.sync(SyncReason.SCREEN) // 화면 진입 때 버전 체크 (30초 안에 다시 들어오면 생략)
@@ -144,7 +158,7 @@ class MenuHomeViewModel(
     companion object {
         fun factory(c: AppContainer, storeId: String) = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T = MenuHomeViewModel(storeId, c.menus, c.stores, c.cart) as T
+            override fun <T : ViewModel> create(modelClass: Class<T>): T = MenuHomeViewModel(storeId, c.menus, c.stores, c.cart, c.orders) as T
         }
     }
 }
@@ -166,6 +180,7 @@ fun MenuHomeScreen(
     onMyInfo: () -> Unit,
     onCart: () -> Unit,
     onOption: (menuId: String) -> Unit,
+    onOrderStatus: (orderId: String) -> Unit,
     pendingToast: String?,
     onToastShown: (String) -> Unit,
 ) {
@@ -174,6 +189,7 @@ fun MenuHomeScreen(
     val menuState by vm.menus.state.collectAsState()
     val soldOut by vm.menus.soldOut.collectAsState()
     val cart by vm.cart.collectAsState()
+    val liveBar by vm.liveBar.collectAsState()
     val snackbar = remember { OrmoSnackbarState() }
     val now = rememberNowMs()
     val nowLocal = remember(now / 15_000) { LocalDateTime.now() }
@@ -264,11 +280,14 @@ fun MenuHomeScreen(
                                     }
                                 }
                                 // 메뉴 목록 맨 아래 여백 = 하단 바 높이 + 16 (2.1.4)
-                                item { Box(Modifier.height(if (bars.any) 96.dp else Space.s32)) }
+                                item { Box(Modifier.height((if (bars.any) 96.dp else Space.s32))) }
                             }
                         }
                     }
-                    if (bars.showCartBar) CartBar(cart.count, cart.total, onCart)
+                    Column {
+                        liveBar?.let { com.ormo.customer.ui.order.LiveOrderBar(it, onClick = { onOrderStatus(it.orderId) }, bottomInset = !bars.showCartBar) }
+                        if (bars.showCartBar) CartBar(cart.count, cart.total, onCart)
+                    }
                 }
             }
         }

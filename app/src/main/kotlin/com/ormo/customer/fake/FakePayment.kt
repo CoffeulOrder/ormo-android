@@ -7,6 +7,7 @@ import com.ormo.data.payment.PgRequest
 import com.ormo.data.payment.PgResult
 import com.ormo.data.payment.PlaceOrderFailure
 import com.ormo.data.store.StoreDirectory
+import com.ormo.domain.order.PaymentMethod
 import com.ormo.domain.order.OrderDraft
 import com.ormo.domain.payment.PaymentStatus
 import com.ormo.domain.payment.PlacedOrder
@@ -37,6 +38,10 @@ class FakePaymentServer(
     }
 
     private val byKey = HashMap<String, PlacedOrder>()
+    private val drafts = HashMap<String, OrderDraft>()
+
+    /** 결제가 승인되면 호출: 가짜 '내 주문' 서버에 접수 대기 주문을 만든다 (M5) */
+    var onPaid: ((orderId: String, draft: OrderDraft, method: PaymentMethod?) -> Unit)? = null
     private val status = HashMap<String, Server>()
     private var counter = 0
 
@@ -57,6 +62,7 @@ class FakePaymentServer(
                 expiresAtMs = clock() + expiresInMs,
             )
             byKey[idempotencyKey] = order
+            drafts[order.orderId] = draft
             status[order.orderId] = Server.Pending
             return Outcome.Ok(order)
         }
@@ -95,8 +101,13 @@ class FakePaymentServer(
     }
 
     /** 시험하는 사람이 PG 창에서 고른 결과 */
-    fun approve(orderId: String) { status[orderId] = Server.Paid; waiting?.complete(PgResult.Approved("fake-tx")) }
-    fun approveSlow(orderId: String) { status[orderId] = Server.SlowPaid(pollsLeft = 12); waiting?.complete(PgResult.Approved("fake-tx")) }
+    private fun placeInOrders(orderId: String) {
+        val draft = drafts[orderId] ?: return
+        onPaid?.invoke(orderId, draft, _pgWindow.value?.method)
+    }
+
+    fun approve(orderId: String) { status[orderId] = Server.Paid; placeInOrders(orderId); waiting?.complete(PgResult.Approved("fake-tx")) }
+    fun approveSlow(orderId: String) { status[orderId] = Server.SlowPaid(pollsLeft = 12); placeInOrders(orderId); waiting?.complete(PgResult.Approved("fake-tx")) }
     fun fail(orderId: String) { status[orderId] = Server.Failed("CARD_LIMIT"); waiting?.complete(PgResult.Failed("CARD_LIMIT", "한도 초과")) }
     fun close() { waiting?.complete(PgResult.Canceled) }
     fun expire(orderId: String) { status[orderId] = Server.Expired; waiting?.complete(PgResult.Canceled) }

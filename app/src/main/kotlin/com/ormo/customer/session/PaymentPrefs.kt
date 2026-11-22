@@ -77,3 +77,23 @@ class PrefsPaymentMethodStore(context: Context) : PaymentMethodStore {
         prefs.edit().putString("$accountKey.id", method.id).putString("$accountKey.label", method.label).apply()
     }
 }
+
+/**
+ * 알림 권한 안내 시트(4.5.1)의 [다음에] 횟수(계정별)와 '첫 주문인가'. 서버가 주문 이력을 주면 [isFirstOrder] 는 서버 값으로 바꾼다.
+ */
+class PrefsNotificationPromptStore(context: android.content.Context) : com.ormo.data.orders.NotificationPromptStore {
+    private val prefs = context.getSharedPreferences("ormo_notification_prompt", android.content.Context.MODE_PRIVATE)
+
+    override suspend fun dismissCount(accountKey: String): Int = prefs.getInt("dismiss_$accountKey", 0)
+
+    override suspend fun recordDismissal(accountKey: String) {
+        prefs.edit().putInt("dismiss_$accountKey", dismissCount(accountKey) + 1).apply()
+    }
+
+    /** 이 계정이 결제를 끝낸 횟수를 하나 올리고, 이번이 첫 주문이었는지 돌려준다 */
+    fun recordOrderPlaced(accountKey: String): Boolean {
+        val n = prefs.getInt("orders_$accountKey", 0)
+        prefs.edit().putInt("orders_$accountKey", n + 1).apply()
+        return n == 0
+    }
+}

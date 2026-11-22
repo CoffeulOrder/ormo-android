@@ -45,6 +45,16 @@ class CartHolder : Resettable {
         return change
     }
 
+    /** 재주문(4.2.1·4.3.4): 지난 주문을 현재 메뉴로 다시 담는다. 한 줄이라도 담겼으면 이 장바구니의 매장이 된다. */
+    fun applyReorder(storeId: String, plan: com.ormo.domain.orders.ReorderPlan): com.ormo.domain.orders.ReorderResult {
+        val r = plan.applyTo(_checkout.value.cart)
+        if (r.addedLines > 0) {
+            update { it.copy(cart = r.cart) }
+            this.storeId = storeId
+        }
+        return r
+    }
+
     /** 매장을 바꿀 때 비운다 (1.1.2). 수령 방법·결제수단 선택도 처음으로. */
     fun clear() {
         _checkout.value = CheckoutState()
