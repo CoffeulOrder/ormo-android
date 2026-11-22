@@ -107,3 +107,10 @@ class PrefsNotificationPromptStore(context: android.content.Context) : com.ormo.
         return n == 0
     }
 }
+
+/** '오늘 하루 보지 않기' 배너 숨김 시각(epoch ms)을 기기에 저장 (베타 꺼짐 기능 — 플래그를 켜면 쓰인다) */
+class PrefsBannerHideStore(context: android.content.Context) : com.ormo.data.promo.BannerHideStore {
+    private val prefs = context.getSharedPreferences("ormo_banner_hide", android.content.Context.MODE_PRIVATE)
+    override suspend fun get(key: String): String? = prefs.getString(key, null)
+    override suspend fun set(key: String, value: String) { prefs.edit().putString(key, value).apply() }
+}

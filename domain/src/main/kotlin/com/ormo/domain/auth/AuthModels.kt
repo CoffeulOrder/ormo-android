@@ -13,6 +13,8 @@ data class SignUpRequest(
     val verificationToken: String,
     val termsAgreed: Boolean,
     val privacyAgreed: Boolean,
+    /** 추천인 코드 — FeatureFlags.referral 이 켜졌고 입력했을 때만 값이 있다 (베타 꺼짐) */
+    val referralCode: String? = null,
 )
 
 /** 로그인 실패 종류 (디자인 0.1.1~0.1.3) */

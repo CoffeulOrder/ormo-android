@@ -173,3 +173,31 @@ class RemoteAuthApiTest {
         assertFailsWith<AppError.Schema> { RemoteSchoolDirectoryApi.parse(null) }
     }
 }
+
+/** 추천인 코드(베타 꺼짐): 값이 있을 때만 요청에 싣는다 */
+class SignupReferralRequestTest {
+    private lateinit var server: MockWebServer
+    private lateinit var api: RemoteAuthApi
+
+    @BeforeTest fun setUp() {
+        server = MockWebServer().also { it.start() }
+        api = RemoteAuthApi(ApiClient(server.url("/api/v1").toString(), SessionManager()))
+    }
+
+    @AfterTest fun tearDown() { server.shutdown() }
+
+    private fun body(referral: String?): kotlinx.serialization.json.JsonObject = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(200).setHeader("Content-Type", "application/json").setBody("{}"))
+        api.signUp(SignUpRequest("a@b.c", "n", "p", "t", true, true, referralCode = referral))
+        Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+    }
+
+    @Test fun `추천인 코드가 있으면 보낸다`() {
+        assertEquals("ORMO2026", body("ORMO2026")["referralCode"].toString().trim('"'))
+    }
+
+    @Test fun `없거나 비어 있으면 보내지 않는다`() {
+        assertNull(body(null)["referralCode"])
+        assertNull(body("  ")["referralCode"])
+    }
+}
