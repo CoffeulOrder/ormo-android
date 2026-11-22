@@ -3,6 +3,15 @@ package com.ormo.customer
 import android.content.Context
 import com.ormo.core.SessionResetter
 import com.ormo.customer.fake.FakeBackend
+import com.ormo.customer.fake.FakeMenuApi
+import com.ormo.customer.fake.FakeStoreDirectory
+import com.ormo.customer.session.PrefsSelectedStoreStore
+import com.ormo.data.menu.FileMenuCache
+import com.ormo.data.menu.MenuRepository
+import com.ormo.data.search.FileRecentSearchStore
+import com.ormo.data.search.RecentSearchRepository
+import com.ormo.data.store.StoreRepository
+import java.io.File
 import com.ormo.customer.session.KeystoreSessionStore
 import com.ormo.data.auth.AuthApi
 import com.ormo.data.auth.AuthRepository
@@ -32,10 +41,37 @@ class AppContainer(context: Context) {
     val authApi: AuthApi = fake?.auth ?: RemoteAuthApi(client!!)
     val schools: SchoolDirectoryApi = fake?.schools ?: RemoteSchoolDirectoryApi(client!!)
 
-    /** 로그아웃·만료 때 비울 개인 데이터 저장소들 (M3 이후 주문·장바구니 상태 등이 여기에 들어온다) */
-    val resetter = SessionResetter(emptyList())
+    val cart = CartHolder()
+
+    /** 로그아웃·만료 때 비울 개인 데이터 저장소들. 마지막 매장·최근 검색어는 계정별로 남기는 게 명세 의도라 넣지 않는다 (PR M3 참고). */
+    val resetter = SessionResetter(listOf(cart))
 
     val auth = AuthRepository(authApi, sessions, store, resetter, appScope)
+
+    // ---- 매장·메뉴 (M3) ----
+    // BE 가 없어 가짜 데이터를 쓴다 (BuildConfig.USE_FAKE_BACKEND). 메뉴 캐시·최근 검색어는 백업 제외 영역에 둔다.
+    private val menuApi = if (fake != null) FakeMenuApi() else com.ormo.data.menu.RemoteMenuApi(client!!)
+    val menus = MenuRepository(menuApi, FileMenuCache(File(context.noBackupFilesDir, "menu")), appScope)
+    val stores = StoreRepository(FakeStoreDirectory(), PrefsSelectedStoreStore(context))
+    val recentSearches = RecentSearchRepository(FileRecentSearchStore(File(context.noBackupFilesDir, "recent-searches.json")))
+
+    private val accountPrefs = context.getSharedPreferences("ormo_account", Context.MODE_PRIVATE)
+
+    /**
+     * 계정별 기기 데이터(마지막 매장·최근 검색어)의 키. 로그인할 때 이메일로 정하고, 자동 로그인으로 들어오면 저장해 둔 값을 쓴다.
+     * (프로필의 이메일은 늦게 도착하므로 여기서 따로 들고 있다.)
+     */
+    var accountKey: String
+        get() = accountPrefs.getString("key", null) ?: "guest"
+        private set(v) { accountPrefs.edit().putString("key", v).apply() }
+
+    fun onSignedIn(email: String?) {
+        if (!email.isNullOrBlank()) accountKey = email.lowercase()
+    }
+
+    /** 가입 직후 첫 진입이면 매장 선택에서 뒤로가기를 숨긴다 (1.1.1) */
+    @Volatile
+    var firstEntryAfterSignup: Boolean = false
 
     /**
      * 로그인 화면이 이메일을 미리 채울 때 쓰는 일회용 값 (가입 중 "이미 가입된 이메일" → [로그인하기], 비밀번호 재설정 완료, 로그인 만료).

@@ -63,6 +63,7 @@ sealed interface SignupEvent {
 class SignupViewModel(
     private val auth: AuthRepository,
     private val schools: SchoolDirectoryApi,
+    private val onSignedIn: (String) -> Unit = {},
 ) : ViewModel() {
     private val _ui = MutableStateFlow(SignupUi())
     val ui: StateFlow<SignupUi> = _ui.asStateFlow()
@@ -169,6 +170,7 @@ class SignupViewModel(
             when (val r = auth.signUp(req, schoolId)) {
                 is Outcome.Ok -> {
                     loggedInAfterSignup = r.value
+                    if (r.value) onSignedIn(req.email)
                     _ui.update { it.copy(s = it.s.succeeded(), submitting = false, password = PasswordFormState()) }
                     delay(DONE_MOTION_MS) // 완료 모션 2.8초 뒤 이동 (0.2.6)
                     events.send(SignupEvent.Finished(loggedInAfterSignup))
@@ -230,7 +232,7 @@ class SignupViewModel(
 
         fun factory(c: AppContainer) = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T = SignupViewModel(c.auth, c.schools) as T
+            override fun <T : ViewModel> create(modelClass: Class<T>): T = SignupViewModel(c.auth, c.schools, onSignedIn = c::onSignedIn) as T
         }
     }
 }

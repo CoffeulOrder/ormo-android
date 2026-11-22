@@ -35,6 +35,7 @@ class LoginViewModel(
     private val auth: AuthRepository,
     private val schools: SchoolDirectoryApi,
     prefillEmail: String?,
+    private val onSignedIn: (String) -> Unit = {},
     private val clock: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
     private val _ui = MutableStateFlow(LoginUi())
@@ -97,6 +98,7 @@ class LoginViewModel(
             val schoolId = cur.domains?.schoolIdOf(cur.form.domain)
             when (val r = auth.signIn(email, cur.form.password, schoolId)) {
                 is Outcome.Ok -> {
+                    onSignedIn(email)
                     _ui.update { it.copy(form = it.form.copy(submitting = false, password = "")) }
                     events.send(LoginEvent.LoggedIn)
                 }
@@ -118,7 +120,7 @@ class LoginViewModel(
     companion object {
         fun factory(c: AppContainer, prefillEmail: String?) = object : androidx.lifecycle.ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T = LoginViewModel(c.auth, c.schools, prefillEmail) as T
+            override fun <T : ViewModel> create(modelClass: Class<T>): T = LoginViewModel(c.auth, c.schools, prefillEmail, onSignedIn = c::onSignedIn) as T
         }
     }
 }
