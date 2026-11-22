@@ -33,7 +33,22 @@ data class FeatureFlags(
     val events: Boolean = false,
     val myMenu: Boolean = false,
     val referral: Boolean = false,
-)
+) {
+    fun allows(f: BetaFeature): Boolean = when (f) {
+        BetaFeature.COUPONS -> coupons
+        BetaFeature.EVENTS -> events
+        BetaFeature.MY_MENU -> myMenu
+        BetaFeature.REFERRAL -> referral
+    }
+
+    companion object {
+        /** 베타 범위: 전부 꺼짐 (이식 계획 D-6) */
+        val BETA = FeatureFlags()
+    }
+}
+
+/** 플래그로 켜고 끄는 베타 제외 기능 */
+enum class BetaFeature { COUPONS, EVENTS, MY_MENU, REFERRAL }
 
 /** 로그아웃/세션 만료 때 초기화해야 하는 개인 데이터 저장소. */
 interface Resettable {

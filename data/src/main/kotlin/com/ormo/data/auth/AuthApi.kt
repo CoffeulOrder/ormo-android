@@ -97,6 +97,7 @@ class RemoteAuthApi(private val client: ApiClient) : AuthApi {
                 put("name", req.name)
                 put("password", req.password)
                 put("verificationToken", req.verificationToken)
+                if (!req.referralCode.isNullOrBlank()) put("referralCode", req.referralCode)
                 put(
                     "consents",
                     buildJsonObject {

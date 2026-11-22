@@ -83,10 +83,29 @@ class AppContainer(context: Context) {
         }
     }
 
+    // ---- 베타 제외 기능 (M7): 쿠폰·이벤트 배너·내 메뉴·추천인 ----
+    // 새 디자인(Figma)에 화면이 없어 UI 는 없고, 플래그(전부 꺼짐)·규칙·저장소만 준비해 둔다. 꺼져 있으면 서버에 묻지 않는다.
+    val featureFlags = com.ormo.core.FeatureFlags.BETA
+    private val promoApi = com.ormo.data.promo.UnavailablePromoApi // TODO(M8): 서버가 생기면 RemoteVoucherApi 등으로 교체
+    val vouchers = com.ormo.data.promo.VoucherRepository(promoApi, featureFlags)
+    val myMenus = com.ormo.data.promo.MyMenuRepository(promoApi, featureFlags)
+    val events = com.ormo.data.promo.EventRepository(promoApi, featureFlags)
+    val banners = com.ormo.data.promo.BannerManager(
+        api = promoApi,
+        hideStore = com.ormo.customer.session.PrefsBannerHideStore(context),
+        scope = appScope,
+        imageReady = { false }, // TODO(M8): Coil prefetch (이미지가 안 받아지면 팝업을 띄우지 않는다)
+        userKey = { accountKey },
+        flags = featureFlags,
+    )
+
     /** 로그아웃·만료 때 비울 개인 데이터. 마지막 매장·최근 검색어는 계정별로 남기는 게 명세 의도라 넣지 않는다 (PR M3 참고). */
     val resetter = SessionResetter(
         listOf(
             cart,
+            vouchers,
+            myMenus,
+            banners,
             object : Resettable {
                 override fun reset() { orders.reset() } // 다른 계정의 주문이 남지 않게
             },

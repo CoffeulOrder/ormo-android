@@ -87,3 +87,21 @@ object NameRules {
         return if (ok) null else Error.INVALID_CHARS
     }
 }
+
+/** 회원가입 추천인 코드 (FeatureFlags.referral 이 켜졌을 때만 입력칸을 보인다). 영문/숫자 4~12자, 비워 두면 보내지 않는다. */
+object ReferralRules {
+    private val RE = Regex("^[A-Za-z0-9]{4,12}$")
+
+    /** 입력 중에는 영문/숫자만 남긴다 */
+    fun sanitize(raw: String): String = raw.filter { it in 'A'..'Z' || it in 'a'..'z' || it in '0'..'9' }
+
+    fun isValid(code: String): Boolean = RE.matches(code.trim())
+
+    /** 칸을 채웠는데 형식이 틀렸을 때만 오류 ('영문/숫자 4~12자로 입력해 주세요') */
+    fun isBad(code: String): Boolean = code.trim().isNotEmpty() && !isValid(code)
+
+    const val BAD_FORMAT = "영문/숫자 4~12자로 입력해 주세요"
+
+    /** 요청에 실을 값: 플래그가 꺼져 있거나 비어 있으면 null */
+    fun requestValue(code: String, enabled: Boolean): String? = if (enabled) code.trim().takeIf { it.isNotEmpty() } else null
+}
