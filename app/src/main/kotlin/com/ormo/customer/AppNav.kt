@@ -22,6 +22,22 @@ import com.ormo.customer.ui.auth.SignupViewModel
 import com.ormo.customer.ui.auth.SplashScreen
 import com.ormo.customer.ui.catalog.ComponentCatalog
 import com.ormo.customer.ui.home.HomePlaceholder
+import com.ormo.customer.ui.menu.MenuHomeScreen
+import com.ormo.customer.ui.menu.MenuHomeViewModel
+import com.ormo.customer.ui.menu.MenuSearchScreen
+import com.ormo.customer.ui.menu.MenuSearchViewModel
+import com.ormo.customer.ui.store.StoreInfoScreen
+import com.ormo.customer.ui.store.StoreSelectScreen
+import com.ormo.customer.ui.store.StoreSelectViewModel
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
+import androidx.compose.runtime.produceState
+import com.ormo.core.Outcome
+import com.ormo.data.store.StoreLoadFailure
+import com.ormo.domain.store.StoreEntry
+import com.ormo.domain.store.StoreRules
+import com.ormo.domain.store.OrderAvailability
+import java.time.LocalDateTime
 import com.ormo.data.auth.AuthNotice
 import com.ormo.data.auth.AuthStatus
 import com.ormo.domain.common.CommonError
@@ -33,7 +49,19 @@ private object Routes {
     const val LOGIN = "login"
     const val SIGNUP = "signup"
     const val RESET = "reset"
-    const val HOME = "home"
+    const val ENTRY = "entry"
+    const val STORES = "stores/{hideBack}"
+    const val STORE_INFO = "store_info/{id}"
+    const val MENU = "menu/{id}"
+    const val SEARCH = "search/{id}"
+    const val MYINFO = "myinfo"
+    fun stores(hideBack: Boolean) = "stores/$hideBack"
+    fun storeInfo(id: String) = "store_info/$id"
+    fun menu(id: String) = "menu/$id"
+    fun search(id: String) = "search/$id"
+
+    /** 로그인한 사람만 보는 화면들 (세션이 끝나면 로그인으로 보낸다) */
+    val authed = setOf(ENTRY, STORES, STORE_INFO, MENU, SEARCH, MYINFO)
     const val EXPIRED = "session_expired"
     const val OFFLINE = "offline"
     const val CATALOG = "catalog"
@@ -55,14 +83,20 @@ fun AppNav(container: AppContainer) {
     val profile by auth.profile.collectAsState()
     val scope = rememberCoroutineScope()
 
+    // 메뉴 데이터는 학교 단위: 로그인하면 그 학교의 메뉴(캐시 → 서버 버전 체크)를 불러오고, 로그아웃하면 비운다
+    val schoolId by auth.schoolId.collectAsState()
+    LaunchedEffect(status, schoolId) {
+        container.menus.setSchool(if (status == AuthStatus.SIGNED_IN) schoolId else null)
+    }
+
     var restoreTick by remember { mutableStateOf(0) }
     LaunchedEffect(restoreTick) { auth.restore() }
 
     // 홈에 있는 동안 세션이 끝나면 로그인(또는 만료 안내)으로
     LaunchedEffect(status) {
-        if (status == AuthStatus.SIGNED_OUT && nav.currentDestination?.route == Routes.HOME) {
+        if (status == AuthStatus.SIGNED_OUT && nav.currentDestination?.route in Routes.authed) {
             val expired = notice == AuthNotice.SESSION_EXPIRED
-            nav.navigate(if (expired) Routes.EXPIRED else Routes.LOGIN) { popUpTo(Routes.HOME) { inclusive = true } }
+            nav.navigate(if (expired) Routes.EXPIRED else Routes.LOGIN) { popUpTo(nav.graph.id) { inclusive = true } }
         }
     }
 
@@ -74,7 +108,7 @@ fun AppNav(container: AppContainer) {
             LaunchedEffect(motionDone, status) {
                 if (!motionDone) return@LaunchedEffect
                 when (status) {
-                    AuthStatus.SIGNED_IN -> nav.goClearing(Routes.HOME, Routes.SPLASH)
+                    AuthStatus.SIGNED_IN -> nav.goClearing(Routes.ENTRY, Routes.SPLASH)
                     AuthStatus.SIGNED_OUT -> nav.goClearing(Routes.LOGIN, Routes.SPLASH)
                     AuthStatus.OFFLINE -> nav.goClearing(Routes.OFFLINE, Routes.SPLASH)
                     AuthStatus.RESTORING -> Unit
@@ -100,7 +134,7 @@ fun AppNav(container: AppContainer) {
                 vm = vm,
                 notice = notice,
                 onNoticeShown = { if (notice != AuthNotice.SESSION_EXPIRED) auth.clearNotice() },
-                onLoggedIn = { nav.goClearing(Routes.HOME, Routes.LOGIN) },
+                onLoggedIn = { nav.goClearing(Routes.ENTRY, Routes.LOGIN) },
                 onForgotPassword = { nav.navigate(Routes.RESET) },
                 onSignup = { nav.navigate(Routes.SIGNUP) },
             )
@@ -111,7 +145,10 @@ fun AppNav(container: AppContainer) {
                 vm = vm,
                 onClose = { nav.popBackStack() },
                 // 가입 후 바로 로그인된 상태 → (매장 선택은 M3) 지금은 홈 자리로. 자동 로그인이 안 됐으면 로그인 화면으로
-                onFinished = { loggedIn -> nav.goClearing(if (loggedIn) Routes.HOME else Routes.LOGIN, Routes.LOGIN) },
+                onFinished = { loggedIn ->
+                    container.firstEntryAfterSignup = loggedIn // 가입 직후 첫 진입은 매장 선택에서 뒤로가기를 숨긴다 (1.1.1)
+                    nav.goClearing(if (loggedIn) Routes.ENTRY else Routes.LOGIN, Routes.LOGIN)
+                },
                 onLoginWithEmail = { email ->
                     container.pendingLoginEmail = email
                     nav.goClearing(Routes.LOGIN, Routes.LOGIN)
@@ -129,7 +166,70 @@ fun AppNav(container: AppContainer) {
                 },
             )
         }
-        composable(Routes.HOME) {
+        composable(Routes.ENTRY) {
+            // 로그인 뒤 어디로 갈지: 기억한 매장이 있으면 메뉴 홈, 없으면 매장 선택 (목록을 못 받아도 기억한 매장이 있으면 메뉴 캐시로)
+            var tick by remember { mutableStateOf(0) }
+            var failed by remember { mutableStateOf(false) }
+            LaunchedEffect(tick) {
+                failed = false
+                val first = container.firstEntryAfterSignup
+                when (val r = container.stores.resolveEntry(container.accountKey, first)) {
+                    is Outcome.Ok -> {
+                        container.firstEntryAfterSignup = false
+                        when (val e = r.value) {
+                            is StoreEntry.MenuHome -> nav.goClearing(Routes.menu(e.storeId), Routes.ENTRY)
+                            is StoreEntry.StoreSelect -> nav.goClearing(Routes.stores(e.hideBack), Routes.ENTRY)
+                        }
+                    }
+                    is Outcome.Fail -> failed = true
+                }
+            }
+            if (failed) CommonErrorScreen(CommonError.Network, "다시 시도", onButton = { tick++ })
+        }
+        composable(Routes.STORES, arguments = listOf(navArgument("hideBack") { type = NavType.BoolType })) { entry ->
+            val hideBack = entry.arguments?.getBoolean("hideBack") ?: false
+            val vm: StoreSelectViewModel = viewModel(factory = StoreSelectViewModel.factory(container))
+            StoreSelectScreen(
+                vm = vm,
+                hideBack = hideBack,
+                onBack = { nav.popBackStack() },
+                onInfo = { id -> nav.navigate(Routes.storeInfo(id)) },
+                onStoreChosen = { id ->
+                    // 메뉴 홈은 매장 선택 위에 쌓지 않는다: 이미 메뉴 홈에서 왔으면 그 홈을 새 매장으로 바꾼다
+                    nav.navigate(Routes.menu(id)) { popUpTo(nav.graph.id) { inclusive = false; saveState = false }; launchSingleTop = true }
+                },
+            )
+        }
+        composable(Routes.STORE_INFO, arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
+            StoreInfoScreen(storeId = entry.arguments?.getString("id").orEmpty(), repo = container.stores, onBack = { nav.popBackStack() })
+        }
+        composable(Routes.MENU, arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
+            val id = entry.arguments?.getString("id").orEmpty()
+            val vm: MenuHomeViewModel = viewModel(key = "menu-$id", factory = MenuHomeViewModel.factory(container, id))
+            MenuHomeScreen(
+                vm = vm,
+                onStoreSelect = { nav.navigate(Routes.stores(false)) },
+                onStoreInfo = { nav.navigate(Routes.storeInfo(id)) },
+                onSearch = { nav.navigate(Routes.search(id)) },
+                onMyInfo = { nav.navigate(Routes.MYINFO) },
+                onCart = { /* TODO(M4): 장바구니·주문서 화면 */ },
+            )
+        }
+        composable(Routes.SEARCH, arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
+            val id = entry.arguments?.getString("id").orEmpty()
+            val vm: MenuSearchViewModel = viewModel(key = "search-$id", factory = MenuSearchViewModel.factory(container, id))
+            // 검색 결과에서 담을 수 있는지는 매장의 영업 상태로 정한다 (2.1.2)
+            val store by produceState<com.ormo.domain.store.Store?>(null, id) {
+                value = (container.stores.loadStores() as? Outcome.Ok)?.value?.all?.firstOrNull { it.id == id }
+            }
+            MenuSearchScreen(
+                vm = vm,
+                availability = { store?.let { StoreRules.availability(it.status, LocalDateTime.now()) } ?: OrderAvailability.Available },
+                onBack = { nav.popBackStack() },
+            )
+        }
+        composable(Routes.MYINFO) {
+            // 내 정보(M6)가 만들어질 때까지 임시: 로그아웃만 된다
             HomePlaceholder(
                 name = profile?.name,
                 onLogout = { scope.launch { auth.signOut() } },

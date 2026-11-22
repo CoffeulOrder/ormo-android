@@ -57,6 +57,14 @@ class MenuRepository(
     private val _state = MutableStateFlow(MenuState())
     val state: StateFlow<MenuState> = _state
 
+    private val _syncFailures = MutableStateFlow(0)
+
+    /**
+     * 마지막으로 갱신에 실패한 횟수(누적). 표시할 메뉴가 있으면 실패해도 화면은 그대로이므로([MenuState.failed] 는 메뉴가 없을 때만),
+     * 화면이 "일부만 실패" 스낵바(6.1.1)를 띄우려면 이 값이 늘었는지 본다.
+     */
+    val syncFailures: StateFlow<Int> = _syncFailures
+
     private val _soldOut = MutableStateFlow<Map<String, Set<String>>>(emptyMap())
 
     /** cafeId → 품절 메뉴 id (메모리 전용) */
@@ -164,6 +172,7 @@ class MenuRepository(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            if (isCurrent(gen)) _syncFailures.update { it + 1 }
             if (isCurrent(gen) && _state.value.payload == null) {
                 _state.update { it.copy(failed = true) }
             }

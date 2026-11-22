@@ -87,6 +87,36 @@ object OrmoIcons {
         close()
     }
 
+    /** 검색 (돋보기) */
+    val Search: ImageVector = icon("search") {
+        moveTo(18.5f, 11f)
+        arcTo(7.5f, 7.5f, 0f, true, true, 3.5f, 11f)
+        arcTo(7.5f, 7.5f, 0f, true, true, 18.5f, 11f)
+        close()
+        moveTo(16.5f, 16.5f); lineTo(21f, 21f)
+    }
+
+    /** 내 정보 (사람) */
+    val Person: ImageVector = icon("person") {
+        moveTo(16.5f, 8f)
+        arcTo(4.5f, 4.5f, 0f, true, true, 7.5f, 8f)
+        arcTo(4.5f, 4.5f, 0f, true, true, 16.5f, 8f)
+        close()
+        moveTo(4.5f, 20f)
+        curveTo(4.5f, 16.5f, 7.5f, 14.5f, 12f, 14.5f)
+        curveTo(16.5f, 14.5f, 19.5f, 16.5f, 19.5f, 20f)
+    }
+
+    /** 매장 정보 (i) */
+    val Info: ImageVector = icon("info") {
+        moveTo(21f, 12f)
+        arcTo(9f, 9f, 0f, true, true, 3f, 12f)
+        arcTo(9f, 9f, 0f, true, true, 21f, 12f)
+        close()
+        moveTo(12f, 11f); lineTo(12f, 16.5f)
+        moveTo(12f, 7.6f); lineTo(12f, 7.7f)
+    }
+
     private fun PathBuilder.eyeOutline() {
         moveTo(2.5f, 12f)
         curveTo(5f, 7.5f, 8.2f, 5.5f, 12f, 5.5f)

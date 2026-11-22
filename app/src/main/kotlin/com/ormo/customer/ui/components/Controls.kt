@@ -318,3 +318,15 @@ fun OrmoTopNav(
 }
 
 private val EmptyActions: @Composable () -> Unit = {}
+
+// ───────────── 정보 행 (라벨 + 값) ─────────────
+
+/** 라벨과 값이 한 줄에 나란히 있는 행 (매장 정보의 운영시간·판매자 정보) */
+@Composable
+fun InfoRow(label: String, value: String, modifier: Modifier = Modifier, labelWidth: Int = 100) {
+    val c = Ormo.colors
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
+        Text(label, style = OrmoType.bodyMdMedium, color = c.textTertiary, modifier = Modifier.width(labelWidth.dp))
+        Text(value, style = OrmoType.bodyMdRegular, color = c.textPrimary, modifier = Modifier.weight(1f))
+    }
+}

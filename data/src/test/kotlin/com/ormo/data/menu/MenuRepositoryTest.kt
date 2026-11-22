@@ -249,6 +249,25 @@ class MenuRepositoryTest {
         assertEquals(false, r.state.value.failed)
     }
 
+    @Test fun `갱신이 실패한 횟수를 세어 화면이 일부만 실패 스낵바를 띄울 수 있다`() = runTest {
+        cache.store["s1"] = testPayload(1, "cached")
+        api.version = 2
+        api.failMenus = true
+        val r = repo()
+        assertEquals(0, r.syncFailures.value)
+
+        r.setSchool("s1") // 표시 중인 메뉴가 있으니 화면은 그대로지만 실패는 센다
+        assertEquals(1, r.syncFailures.value)
+        assertEquals(false, r.state.value.failed)
+
+        r.sync(SyncReason.SCREEN, force = true)
+        assertEquals(2, r.syncFailures.value)
+
+        api.failMenus = false
+        r.sync(SyncReason.SCREEN, force = true)
+        assertEquals(2, r.syncFailures.value) // 성공하면 늘지 않는다
+    }
+
     @Test fun `버전 확인이 실패해도 기존 메뉴를 유지한다`() = runTest {
         cache.store["s1"] = testPayload(1, "cached")
         api.failVersion = true
