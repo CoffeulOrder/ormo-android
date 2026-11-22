@@ -148,3 +148,5 @@ val OrmoIcons.ImagePlaceholder: ImageVector get() = FigmaIcons.ImagePlaceholder
 val OrmoIcons.Bell: ImageVector get() = FigmaIcons.Bell
 val OrmoIcons.Cup: ImageVector get() = FigmaIcons.Cup
 val OrmoIcons.Download: ImageVector get() = FigmaIcons.Download
+val OrmoIcons.WifiOff: ImageVector get() = FigmaIcons.WifiOff
+val OrmoIcons.Wrench: ImageVector get() = FigmaIcons.Wrench

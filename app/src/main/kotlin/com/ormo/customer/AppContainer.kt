@@ -96,7 +96,23 @@ class AppContainer(context: Context) {
         ),
     )
 
-    val auth = AuthRepository(authApi, sessions, store, resetter, appScope)
+    val auth = AuthRepository(
+        authApi, sessions, store, resetter, appScope,
+        // 탈퇴 때만: 계정별로 남겨 둔 기기 데이터를 지운다 (로그아웃에서는 남긴다, PR M3·M5)
+        onWithdrawn = { key ->
+            if (key != null) {
+                val k = key.lowercase()
+                recentSearches.deleteAccount(k)
+                stores.forget(k)
+                notificationPrompts.clear(k)
+                paymentMethods.clear(k)
+            }
+        },
+    )
+
+    // ---- 내 정보·알림 설정 (M6) ----
+    // 알림 설정 API 가 없어 가짜 서버(메모리)를 쓴다. OS 알림 권한은 화면이 보일 때마다 다시 확인해 넣는다.
+    val notificationSettings = com.ormo.data.profile.NotificationSettingsRepository(com.ormo.customer.fake.FakeNotificationSettingsApi())
 
     // ---- 매장·메뉴 (M3) ----
     // BE 가 없어 가짜 데이터를 쓴다 (BuildConfig.USE_FAKE_BACKEND). 메뉴 캐시·최근 검색어는 백업 제외 영역에 둔다.

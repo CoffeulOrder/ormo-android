@@ -27,6 +27,9 @@ import androidx.compose.ui.unit.dp
 import com.ormo.customer.ui.components.BottomCta
 import com.ormo.customer.ui.components.ButtonSize
 import com.ormo.customer.ui.components.OrmoButton
+import com.ormo.customer.ui.components.OrmoIcons
+import com.ormo.customer.ui.components.WifiOff
+import com.ormo.customer.ui.components.Wrench
 import com.ormo.customer.ui.theme.Ormo
 import com.ormo.customer.ui.theme.OrmoType
 import com.ormo.customer.ui.theme.Space
@@ -70,29 +73,51 @@ fun OrmoLogo(modifier: Modifier = Modifier, wordmarkVisible: Boolean = true) {
     }
 }
 
-/** 공통 오류 화면 (6.1): 제목 + 본문 + 버튼 하나. 네트워크·로그인 만료·점검에 쓴다. */
+/**
+ * 공통 오류 화면 (디자인 6.1 / Figma): 인터넷 끊김·점검은 **회색 원 아이콘 + 제목 + 본문 + 작은 [다시 시도]** 가운데 정렬,
+ * 로그인 만료(6.1.2)는 스켈레톤 화면 위에 '다시 로그인해주세요' 다이얼로그 + [로그인하기].
+ */
 @Composable
 fun CommonErrorScreen(error: CommonError, buttonLabel: String, onButton: () -> Unit, modifier: Modifier = Modifier) {
     val c = Ormo.colors
-    Column(modifier.fillMaxSize().background(c.bgDefault)) {
-        Column(
-            Modifier.weight(1f).fillMaxWidth().padding(horizontal = Space.pageMargin),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(error.title, style = OrmoType.displayXsSemibold, color = c.textPrimary, textAlign = TextAlign.Center)
-            Text(
-                error.body,
-                style = OrmoType.bodyMdRegular,
-                color = c.textSecondary,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = Space.s8),
-            )
+    if (error is CommonError.SessionExpired) {
+        Column(modifier.fillMaxSize().background(c.bgDefault).padding(Space.pageMargin), verticalArrangement = Arrangement.spacedBy(Space.s24)) {
+            com.ormo.customer.ui.components.SkeletonBlock(Modifier.padding(top = Space.s32).size(width = 120.dp, height = 16.dp))
+            com.ormo.customer.ui.components.SkeletonBlock(Modifier.fillMaxWidth().size(width = 335.dp, height = 48.dp), androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
+            repeat(6) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Space.s12), verticalAlignment = Alignment.CenterVertically) {
+                    com.ormo.customer.ui.components.SkeletonBlock(Modifier.size(48.dp), CircleShape)
+                    Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+                        com.ormo.customer.ui.components.SkeletonBlock(Modifier.size(width = 230.dp, height = 14.dp))
+                        com.ormo.customer.ui.components.SkeletonBlock(Modifier.size(width = 100.dp, height = 10.dp))
+                    }
+                }
+            }
+        }
+        com.ormo.customer.ui.components.OrmoDialog(
+            title = error.title,
+            body = error.body.replace(". ", ".\n"),
+            confirmLabel = buttonLabel,
+            onConfirm = onButton,
+            onDismissRequest = null,
+        )
+        return
+    }
+    Column(modifier.fillMaxSize().background(c.bgDefault), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = Space.pageMargin), horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(Modifier.size(60.dp).clip(CircleShape).background(c.bgLower), contentAlignment = Alignment.Center) {
+                androidx.compose.material3.Icon(
+                    if (error is CommonError.Network) OrmoIcons.WifiOff else OrmoIcons.Wrench,
+                    null, tint = c.iconTertiary, modifier = Modifier.size(28.dp),
+                )
+            }
+            Text(error.title, style = OrmoType.bodyLgSemibold, color = c.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = Space.s16))
+            Text(error.body, style = OrmoType.bodyMdRegular, color = c.textSecondary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = Space.s4))
             val notice = (error as? CommonError.Maintenance)?.endsAtNotice
             if (notice != null) {
                 Text(notice, style = OrmoType.bodyMdSemibold, color = c.textBrand, modifier = Modifier.padding(top = Space.s8))
             }
+            OrmoButton(buttonLabel, onButton, Modifier.padding(top = Space.s16), size = ButtonSize.M)
         }
-        BottomCta { OrmoButton(buttonLabel, onButton, Modifier.fillMaxWidth(), size = ButtonSize.XL) }
     }
 }

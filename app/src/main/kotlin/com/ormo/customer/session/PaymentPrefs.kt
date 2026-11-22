@@ -76,6 +76,11 @@ class PrefsPaymentMethodStore(context: Context) : PaymentMethodStore {
     override suspend fun save(accountKey: String, method: PaymentMethod): Unit = withContext(Dispatchers.IO) {
         prefs.edit().putString("$accountKey.id", method.id).putString("$accountKey.label", method.label).apply()
     }
+
+    /** 탈퇴 때 이 계정의 마지막 결제수단 기억을 지운다 */
+    suspend fun clear(accountKey: String): Unit = withContext(Dispatchers.IO) {
+        prefs.edit().remove("$accountKey.id").remove("$accountKey.label").apply()
+    }
 }
 
 /**
@@ -88,6 +93,11 @@ class PrefsNotificationPromptStore(context: android.content.Context) : com.ormo.
 
     override suspend fun recordDismissal(accountKey: String) {
         prefs.edit().putInt("dismiss_$accountKey", dismissCount(accountKey) + 1).apply()
+    }
+
+    /** 탈퇴 때 이 계정의 안내 기록을 지운다 */
+    fun clear(accountKey: String) {
+        prefs.edit().remove("dismiss_$accountKey").remove("orders_$accountKey").apply()
     }
 
     /** 이 계정이 결제를 끝낸 횟수를 하나 올리고, 이번이 첫 주문이었는지 돌려준다 */
