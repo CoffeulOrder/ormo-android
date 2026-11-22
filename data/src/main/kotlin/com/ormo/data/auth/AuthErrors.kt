@@ -8,6 +8,7 @@ import com.ormo.domain.auth.PasswordFailure
 import com.ormo.domain.auth.SendCodeFailure
 import com.ormo.domain.auth.SignupRejection
 import com.ormo.domain.auth.VerifyCodeFailure
+import com.ormo.domain.profile.WithdrawFailure
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 
@@ -37,6 +38,7 @@ object AuthErrors {
     private val PASSWORD_INVALID = setOf("PASSWORD_INVALID", "U002")
     private val CONSENT_REQUIRED = setOf("CONSENT_REQUIRED", "U003")
     private val PASSWORD_SAME = setOf("PASSWORD_SAME_AS_OLD", "PASSWORD_SAME", "SAME_PASSWORD")
+    private val ACTIVE_ORDERS = setOf("ACTIVE_ORDER_EXISTS", "ORDER_IN_PROGRESS", "HAS_ACTIVE_ORDERS")
     private val CURRENT_PASSWORD_WRONG = setOf("CURRENT_PASSWORD_MISMATCH", "WRONG_CURRENT_PASSWORD")
 
     fun login(e: Throwable): LoginFailure {
@@ -96,6 +98,17 @@ object AuthErrors {
             code in PASSWORD_INVALID -> PasswordFailure.INVALID_FORMAT
             code in VERIFICATION_INVALID -> PasswordFailure.VERIFICATION_INVALID
             else -> PasswordFailure.OTHER
+        }
+    }
+
+    /** 회원 탈퇴 (5.3): 비밀번호 틀림 / 진행 중 주문 있음 */
+    fun withdraw(e: Throwable): WithdrawFailure {
+        val api = e as? AppError.Api ?: return if (e is AppError.Network) WithdrawFailure.NETWORK else WithdrawFailure.OTHER
+        val code = api.code
+        return when {
+            code in ACTIVE_ORDERS -> WithdrawFailure.ACTIVE_ORDERS
+            code in CURRENT_PASSWORD_WRONG || code in INVALID_CREDENTIALS -> WithdrawFailure.WRONG_PASSWORD
+            else -> WithdrawFailure.OTHER
         }
     }
 

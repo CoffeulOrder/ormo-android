@@ -55,6 +55,9 @@ interface AuthApi {
     suspend fun resetPassword(email: String, verificationToken: String, newPassword: String)
     suspend fun changePassword(currentPassword: String, newPassword: String)
     suspend fun me(): UserProfile
+
+    /** 회원 탈퇴 (5.3.1: 비밀번호 확인 후). 진행 중 주문이 있으면 서버가 거절한다 (5.3.2). */
+    suspend fun withdraw(password: String)
 }
 
 class RemoteAuthApi(private val client: ApiClient) : AuthApi {
@@ -150,6 +153,11 @@ class RemoteAuthApi(private val client: ApiClient) : AuthApi {
     }
 
     override suspend fun me(): UserProfile = AuthParsers.profile(client.get("/me"))
+
+    /** ⚠️ 경로/본문은 앱이 가정한 것 (BE 확정 전): `POST /me/withdraw { password }` */
+    override suspend fun withdraw(password: String) {
+        client.post("/me/withdraw", buildJsonObject { put("password", password) })
+    }
 
     companion object {
         /** 서버 응답이 없을 때의 기본값 (디자인 8.1: 화면 예시 5:00, 재발송 1분) */
