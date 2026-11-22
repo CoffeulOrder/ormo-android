@@ -19,6 +19,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,13 +65,19 @@ fun OrmoField(
     placeholder: String? = null,
     helper: String? = null,
     error: String? = null,
+    /** 오류 문구 없이 빨간 테두리만 (로그인 실패: 두 칸 모두 빨갛게, 문구는 한 곳에만) */
+    invalid: Boolean = false,
     size: FieldSize = FieldSize.L,
     enabled: Boolean = true,
     singleLine: Boolean = true,
     suffix: String? = null,
+    /** 접미사·아이콘 영역을 눌렀을 때 (도메인 선택 시트) */
+    onSuffixClick: (() -> Unit)? = null,
     /** 오른쪽 24dp 아이콘 영역 (도메인 선택 chevron, 비밀번호 eye 등) */
     trailing: (@Composable () -> Unit)? = null,
     clearable: Boolean = true,
+    /** 화면(칸)이 처음 나타날 때 키보드를 올린다 */
+    autoFocus: Boolean = false,
     visualTransformation: VisualTransformation = VisualTransformation.None,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
@@ -76,14 +85,16 @@ fun OrmoField(
     val c = Ormo.colors
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
-    val invalid = error != null
+    val requester = remember { FocusRequester() }
+    LaunchedEffect(autoFocus) { if (autoFocus && enabled) requester.requestFocus() }
+    val isInvalid = error != null || invalid
 
     val borderColor = when {
-        invalid -> c.fillDanger
+        isInvalid -> c.fillDanger
         focused -> c.fillBrand
         else -> Base.GreyOpacity300
     }
-    val borderWidth = if (invalid || focused) Size.borderThick else Size.borderThin
+    val borderWidth = if (isInvalid || focused) Size.borderThick else Size.borderThin
 
     Column(modifier = modifier.fillMaxWidth()) {
         if (label != null) {
@@ -101,7 +112,7 @@ fun OrmoField(
             visualTransformation = visualTransformation,
             keyboardOptions = keyboardOptions,
             keyboardActions = keyboardActions,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().focusRequester(requester),
             decorationBox = { inner ->
                 Row(
                     modifier = Modifier
@@ -121,7 +132,12 @@ fun OrmoField(
                         inner()
                     }
                     if (suffix != null) {
-                        Text(suffix, style = OrmoType.bodyMdRegular, color = c.textTertiary)
+                        Text(
+                            suffix,
+                            style = OrmoType.bodyMdRegular,
+                            color = c.textTertiary,
+                            modifier = if (onSuffixClick != null) Modifier.clickable(role = Role.Button, onClick = onSuffixClick) else Modifier,
+                        )
                     }
                     val showClear = clearable && focused && value.isNotEmpty() && suffix == null && trailing == null && enabled
                     if (showClear) {
@@ -135,14 +151,19 @@ fun OrmoField(
                         )
                     }
                     if (trailing != null) {
-                        Box(Modifier.size(Size.iconLg), contentAlignment = Alignment.Center) { trailing() }
+                        Box(
+                            Modifier
+                                .size(Size.iconLg)
+                                .then(if (onSuffixClick != null) Modifier.clickable(role = Role.Button, onClick = onSuffixClick) else Modifier),
+                            contentAlignment = Alignment.Center,
+                        ) { trailing() }
                     }
                 }
             },
         )
-        if (invalid || helper != null) {
+        if (error != null || helper != null) {
             Box(Modifier.height(Space.s8))
-            if (invalid) {
+            if (error != null) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
                     Icon(OrmoIcons.Alert, contentDescription = null, tint = c.iconDanger, modifier = Modifier.size(Size.iconSm))
                     Text(error!!, style = OrmoType.bodySmMedium, color = c.textDanger)
@@ -164,9 +185,12 @@ fun OrmoPasswordField(
     placeholder: String? = null,
     helper: String? = null,
     error: String? = null,
+    invalid: Boolean = false,
     size: FieldSize = FieldSize.L,
     enabled: Boolean = true,
+    keyboardOptions: KeyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
     keyboardActions: KeyboardActions = KeyboardActions.Default,
+    autoFocus: Boolean = false,
 ) {
     var visible by remember { mutableStateOf(false) }
     val c = Ormo.colors
@@ -178,8 +202,10 @@ fun OrmoPasswordField(
         placeholder = placeholder,
         helper = helper,
         error = error,
+        invalid = invalid,
         size = size,
         enabled = enabled,
+        autoFocus = autoFocus,
         trailing = {
             Icon(
                 if (visible) OrmoIcons.Eye else OrmoIcons.EyeOff,
@@ -191,7 +217,7 @@ fun OrmoPasswordField(
             )
         },
         visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        keyboardOptions = keyboardOptions,
         keyboardActions = keyboardActions,
     )
 }

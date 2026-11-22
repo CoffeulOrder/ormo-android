@@ -16,6 +16,10 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
+
+        // BE 가 아직 없다: 인증 API 를 앱 안의 가짜 서버(FakeBackend)로 대신한다. BE 가 준비되면 false 로 바꾸고 주소를 넣는다 (M8).
+        buildConfigField("boolean", "USE_FAKE_BACKEND", "true")
+        buildConfigField("String", "API_BASE_URL", "\"https://api.ormo.example\"")
     }
 
     buildTypes {
@@ -27,6 +31,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     compileOptions {
@@ -47,6 +52,11 @@ dependencies {
     implementation("androidx.core:core-ktx:1.19.1")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.1")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.11.1")
+    implementation("androidx.navigation:navigation-compose:2.10.2")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
+
+    testImplementation(kotlin("test"))
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
 }
