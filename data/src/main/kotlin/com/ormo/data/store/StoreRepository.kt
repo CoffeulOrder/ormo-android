@@ -66,6 +66,9 @@ class StoreRepository(
     /** 매장을 고르면 기억한다. 장바구니 경고(1.1.2)를 통과한 뒤에 호출할 것. */
     suspend fun select(accountKey: String, storeId: String) = selected.save(accountKey, storeId)
 
+    /** 탈퇴 때 이 계정의 마지막 매장 기억을 지운다 */
+    suspend fun forget(accountKey: String) = selected.clear(accountKey)
+
     /**
      * 로그인 직후/앱 시작 때 어디로 갈지. 기억한 매장이 있는데 목록을 못 받았다면(네트워크 등) 메뉴 캐시로 열 수 있게 그 매장으로 보낸다.
      * 기억한 매장이 없는데 목록도 못 받으면 실패(→ 1.1.1 불러오기 실패 화면).

@@ -66,6 +66,10 @@ private object Routes {
     const val ORDER = "order/{orderId}"
     const val RECEIPT = "receipt/{orderId}"
     const val HISTORY = "orders"
+    const val LEGAL = "legal"
+    const val PASSWORD = "change_password"
+    const val WITHDRAW = "withdraw"
+    const val NOTIF = "notification_settings"
     fun order(orderId: String) = "order/$orderId"
     fun receipt(orderId: String) = "receipt/$orderId"
     fun option(storeId: String, menuId: String) = "option/$storeId/$menuId"
@@ -76,7 +80,7 @@ private object Routes {
     fun search(id: String) = "search/$id"
 
     /** 로그인한 사람만 보는 화면들 (세션이 끝나면 로그인으로 보낸다) */
-    val authed = setOf(ENTRY, STORES, STORE_INFO, MENU, SEARCH, MYINFO, OPTION, CHECKOUT, COMPLETE, ORDER, RECEIPT, HISTORY)
+    val authed = setOf(ENTRY, STORES, STORE_INFO, MENU, SEARCH, MYINFO, OPTION, CHECKOUT, COMPLETE, ORDER, RECEIPT, HISTORY, LEGAL, PASSWORD, WITHDRAW, NOTIF)
     const val EXPIRED = "session_expired"
     const val OFFLINE = "offline"
     const val CATALOG = "catalog"
@@ -312,13 +316,30 @@ fun AppNav(container: AppContainer) {
             )
         }
         composable(Routes.MYINFO) {
-            // 내 정보(M6)가 만들어질 때까지 임시: 로그아웃만 된다
-            HomePlaceholder(
-                name = profile?.name,
-                onLogout = { scope.launch { auth.signOut() } },
-                onCatalog = if (BuildConfig.DEBUG) ({ nav.navigate(Routes.CATALOG) }) else null,
+            val vm: com.ormo.customer.ui.myinfo.MyInfoViewModel = viewModel(factory = com.ormo.customer.ui.myinfo.MyInfoViewModel.factory(container))
+            com.ormo.customer.ui.myinfo.MyInfoScreen(
+                vm = vm,
+                onBack = { nav.popBackStack() },
                 onOrders = { nav.navigate(Routes.HISTORY) },
+                onPassword = { nav.navigate(Routes.PASSWORD) },
+                onNotifications = { nav.navigate(Routes.NOTIF) },
+                onLegal = { nav.navigate(Routes.LEGAL) },
+                onWithdraw = { nav.navigate(Routes.WITHDRAW) },
+                onCatalog = if (BuildConfig.DEBUG) ({ nav.navigate(Routes.CATALOG) }) else null,
             )
+        }
+        composable(Routes.LEGAL) { com.ormo.customer.ui.myinfo.LegalListScreen(onBack = { nav.popBackStack() }) }
+        composable(Routes.PASSWORD) {
+            val vm: com.ormo.customer.ui.myinfo.ChangePasswordViewModel = viewModel(factory = com.ormo.customer.ui.myinfo.ChangePasswordViewModel.factory(container))
+            com.ormo.customer.ui.myinfo.ChangePasswordScreen(vm, onBack = { nav.popBackStack() })
+        }
+        composable(Routes.WITHDRAW) {
+            val vm: com.ormo.customer.ui.myinfo.WithdrawViewModel = viewModel(factory = com.ormo.customer.ui.myinfo.WithdrawViewModel.factory(container))
+            com.ormo.customer.ui.myinfo.WithdrawScreen(vm, onBack = { nav.popBackStack() }, onOrders = { nav.navigate(Routes.HISTORY) })
+        }
+        composable(Routes.NOTIF) {
+            val vm: com.ormo.customer.ui.myinfo.NotificationSettingsViewModel = viewModel(factory = com.ormo.customer.ui.myinfo.NotificationSettingsViewModel.factory(container))
+            com.ormo.customer.ui.myinfo.NotificationSettingsScreen(vm, onBack = { nav.popBackStack() })
         }
         composable(Routes.CATALOG) { ComponentCatalog() }
     }
