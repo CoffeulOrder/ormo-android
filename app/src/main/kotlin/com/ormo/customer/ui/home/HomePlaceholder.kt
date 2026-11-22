@@ -18,7 +18,7 @@ import com.ormo.customer.ui.theme.Space
 
 /** 로그인 뒤 도착하는 임시 화면. 매장 선택·메뉴 홈(M3)이 만들어지면 교체한다. */
 @Composable
-fun HomePlaceholder(name: String?, onLogout: () -> Unit, onCatalog: (() -> Unit)? = null) {
+fun HomePlaceholder(name: String?, onLogout: () -> Unit, onCatalog: (() -> Unit)? = null, onOrders: (() -> Unit)? = null) {
     val c = Ormo.colors
     Column(
         Modifier.fillMaxSize().background(c.bgDefault).padding(Space.pageMargin),
@@ -26,7 +26,8 @@ fun HomePlaceholder(name: String?, onLogout: () -> Unit, onCatalog: (() -> Unit)
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text("${name ?: "고객"}님, 환영해요", style = OrmoType.displayXsSemibold, color = c.textPrimary, textAlign = TextAlign.Center)
-        Text("메뉴 홈은 다음 단계(M3)에서 만들어요", style = OrmoType.bodyMdRegular, color = c.textSecondary)
+        Text("내 정보는 다음 단계(M6)에서 만들어요", style = OrmoType.bodyMdRegular, color = c.textSecondary)
+        if (onOrders != null) OrmoButton("주문 내역", onOrders)
         OrmoButton("로그아웃", onLogout, kind = ButtonKind.WeakNeutral)
         if (onCatalog != null) OrmoButton("컴포넌트 카탈로그 (개발용)", onCatalog, kind = ButtonKind.Ghost)
     }

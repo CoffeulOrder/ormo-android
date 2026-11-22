@@ -145,3 +145,6 @@ object OrmoIcons {
 val OrmoIcons.MapPin: ImageVector get() = FigmaIcons.MapPin
 val OrmoIcons.Shoes: ImageVector get() = FigmaIcons.Shoes
 val OrmoIcons.ImagePlaceholder: ImageVector get() = FigmaIcons.ImagePlaceholder
+val OrmoIcons.Bell: ImageVector get() = FigmaIcons.Bell
+val OrmoIcons.Cup: ImageVector get() = FigmaIcons.Cup
+val OrmoIcons.Download: ImageVector get() = FigmaIcons.Download

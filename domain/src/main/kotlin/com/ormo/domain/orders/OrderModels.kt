@@ -58,6 +58,10 @@ data class Order(
     val reason: String? = null,
     /** 매장이 확인하지 못해 자동 거절됨 → 문구 '매장이 주문을 확인하지 못했어요' */
     val autoRejected: Boolean = false,
+    /** 결제 정보 (4.3.1 '결제 정보', 4.3.6 영수증): 결제수단 이름, 마스킹된 카드 번호, 승인 번호. 서버가 주는 값 그대로 보여준다. */
+    val paymentMethod: String? = null,
+    val cardMasked: String? = null,
+    val approvalNumber: String? = null,
 ) {
     /** 받을 기한 (4.3.2): 서버 값 우선, 없으면 준비된 시각 + 미수령 기준 */
     val deadline: Instant?
@@ -82,6 +86,23 @@ object TimeFormat {
     fun clock(t: Instant, zone: ZoneId = SEOUL): String {
         val z = t.atZone(zone)
         return String.format(Locale.US, "%02d:%02d", z.hour, z.minute)
+    }
+
+    private val DOW = arrayOf("월", "화", "수", "목", "금", "토", "일")
+
+    /** "26.08.24 (월)" (Figma 4.2.1 카드, 4.3 상세) */
+    fun dateDow(t: Instant, zone: ZoneId = SEOUL): String {
+        val z = t.atZone(zone)
+        return String.format(Locale.US, "%02d.%02d.%02d (%s)", z.year % 100, z.monthValue, z.dayOfMonth, DOW[z.dayOfWeek.value - 1])
+    }
+
+    /** "26.08.24 (월) 13:12" (Figma 4.3 상세 보조 문구, 결제 일시) */
+    fun dateDowClock(t: Instant, zone: ZoneId = SEOUL): String = "${dateDow(t, zone)} ${clock(t, zone)}"
+
+    /** "2026.08.24 13:02" (영수증 승인 일시) */
+    fun fullDateTime(t: Instant, zone: ZoneId = SEOUL): String {
+        val z = t.atZone(zone)
+        return String.format(Locale.US, "%04d.%02d.%02d %02d:%02d", z.year, z.monthValue, z.dayOfMonth, z.hour, z.minute)
     }
 
     /** "11월 19일 13:30" (내 주문 카드 날짜). TODO(spec 4.2.1): 날짜 표기 Figma 확인 */

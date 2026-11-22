@@ -6,7 +6,8 @@ import com.ormo.domain.payment.DialogText
 import java.time.Instant
 import java.time.ZoneId
 
-enum class StepState { DONE, CURRENT, PENDING }
+/** STOPPED: 거절·매장 취소로 여기서 멈춤 (Figma 4.3.3: 첫 칸이 빨강) */
+enum class StepState { DONE, CURRENT, PENDING, STOPPED }
 
 data class StepView(val label: String, val state: StepState, val time: Instant?)
 
@@ -114,7 +115,7 @@ object OrderDetailRules {
      * - 진행 중/완료: 지금 단계까지 채움
      * - 환불 완료: 진행된 곳까지 그대로 (시각이 있는 마지막 단계까지)
      * - 미수령: 마지막 칸이 '미수령'
-     * - 취소·거절·결제 대기·만료: 숨김
+     * - 거절·매장 취소: 첫 칸만 빨강(멈춤), 직접 취소·결제 대기·만료: 숨김
      */
     fun steps(order: Order): List<StepView>? {
         val times = listOf(order.placedAt, order.makingAt, order.readyAt, order.completedAt)
@@ -130,9 +131,15 @@ object OrderDetailRules {
             OrderStatus.UNCLAIMED -> STEP_LABELS.mapIndexed { i, label ->
                 if (i < 3) StepView(label, StepState.DONE, times[i]) else StepView(UNCLAIMED_LABEL, StepState.CURRENT, order.closedAt)
             }
+            // Figma 4.3.3: 거절·매장 취소는 첫 칸만 빨간 단계 바. 직접 취소는 숨김.
+            OrderStatus.REJECTED -> stopped(order)
+            OrderStatus.CANCELED -> if (order.canceledBy == CancelActor.STORE) stopped(order) else null
             else -> null
         }
     }
+
+    private fun stopped(order: Order): List<StepView> =
+        STEP_LABELS.mapIndexed { i, label -> if (i == 0) StepView(label, StepState.STOPPED, order.placedAt) else StepView(label, StepState.PENDING, null) }
 
     private fun build(times: List<Instant?>, current: Int?, doneThrough: Int = (current ?: 0) - 1): List<StepView> =
         STEP_LABELS.mapIndexed { i, label ->

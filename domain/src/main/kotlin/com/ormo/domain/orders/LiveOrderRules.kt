@@ -17,6 +17,8 @@ data class LiveBarView(
     val contentDescription: String,
     /** 같은 때 진행 중인 다른 주문 수 (표시 방법은 디자인 미정) */
     val otherActiveCount: Int,
+    /** 바 왼쪽의 번호 상자 (Figma 2.1.4 '27') */
+    val pickupNumber: Int? = null,
 )
 
 object LiveOrderRules {
@@ -42,7 +44,7 @@ object LiveOrderRules {
         val stage = order.status.liveBarStage ?: return null
         val others = orders.count { it.status.isActive } - 1
         val num = order.pickupNumber?.let { "${it}번" }
-        return when (stage) {
+        return (when (stage) {
             LiveBarStage.CONFIRMING -> {
                 val ahead = order.aheadCount?.let { "내 앞에 ${it}건" }
                 LiveBarView(
@@ -63,7 +65,7 @@ object LiveOrderRules {
                     describe(num, "음료가 준비됐어요", sub.orEmpty()), others,
                 )
             }
-        }
+        }).copy(pickupNumber = order.pickupNumber)
     }
 
     private fun describe(num: String?, title: String, sub: String): String =

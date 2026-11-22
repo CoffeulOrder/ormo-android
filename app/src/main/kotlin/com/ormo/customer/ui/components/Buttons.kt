@@ -50,11 +50,11 @@ enum class ButtonSize(val height: Dp, val shape: RoundedCornerShape, val horizon
 /**
  * 버튼 종류. **한 화면 묶음에 Solid 는 1개만** (주요 행동).
  * - Solid: 주요 행동 (Fill/Brand + On Fill). [Critical] 은 되돌릴 수 없는 행동 (Fill/Danger).
- * - Weak: Fill/Brand Weak 또는 Neutral Weak 배경 + Text/Primary
+ * - Weak: Fill/Brand Weak 또는 Neutral Weak 배경 + Text/Primary. WeakCritical: 연한 빨강 배경 + 빨간 글자 (주문 취소하기, Figma 4.3.1)
  * - Outline: 테두리만
  * - Ghost: 텍스트 버튼 (높이 40, 반경 12, 좌우 16, body-md Medium, Text/Tertiary)
  */
-enum class ButtonKind { Solid, Critical, WeakBrand, WeakNeutral, Outline, Ghost }
+enum class ButtonKind { Solid, Critical, WeakCritical, WeakBrand, WeakNeutral, Outline, Ghost }
 
 private const val DOUBLE_TAP_GUARD_MS = 500L
 
@@ -96,10 +96,11 @@ fun OrmoButton(
     val hPad = if (ghost) 16.dp else size.horizontalPadding
 
     val (bg, fg) = when {
-        !enabled && (kind == ButtonKind.Solid || kind == ButtonKind.Critical) -> c.fillNeutralWeak to c.textQuaternary
+        !enabled && (kind == ButtonKind.Solid || kind == ButtonKind.Critical || kind == ButtonKind.WeakCritical) -> c.fillNeutralWeak to c.textQuaternary
         !enabled -> Color.Transparent to c.textQuaternary
         kind == ButtonKind.Solid -> c.fillBrand to c.textOnFill
         kind == ButtonKind.Critical -> c.fillDanger to c.textOnFill
+        kind == ButtonKind.WeakCritical -> c.fillDangerWeak to c.textDanger
         kind == ButtonKind.WeakBrand -> c.fillBrandWeak to c.textPrimary
         kind == ButtonKind.WeakNeutral -> c.fillNeutralWeak to c.textPrimary
         kind == ButtonKind.Outline -> Color.Transparent to c.textPrimary
