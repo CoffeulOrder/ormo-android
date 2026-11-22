@@ -37,6 +37,7 @@ class FakeAuthApi : AuthApi {
     var resetPasswordImpl: suspend (String, String, String) -> Unit = { _, _, _ -> }
     var sendCodeImpl: suspend (String, VerifyPurpose) -> SendCodeResult = { _, _ -> SendCodeResult(300, 60) }
     var verifyImpl: suspend (String, VerifyPurpose, String) -> String = { _, _, _ -> "tok" }
+    var withdrawImpl: suspend (String) -> Unit = {}
     var meImpl: suspend () -> UserProfile = { UserProfile("가을", "kim@eulji.ac.kr") }
 
     val refreshCalls = mutableListOf<String>()
@@ -66,6 +67,7 @@ class FakeAuthApi : AuthApi {
         meCalls++
         return meImpl()
     }
+    override suspend fun withdraw(password: String) = withdrawImpl(password)
 }
 
 class CountingResettable : Resettable {

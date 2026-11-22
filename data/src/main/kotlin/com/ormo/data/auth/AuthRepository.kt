@@ -13,6 +13,7 @@ import com.ormo.domain.auth.SendCodeResult
 import com.ormo.domain.auth.SignUpRequest
 import com.ormo.domain.auth.SignupRejection
 import com.ormo.domain.auth.UserProfile
+import com.ormo.domain.profile.WithdrawFailure
 import com.ormo.domain.auth.VerifyCodeFailure
 import com.ormo.domain.auth.VerifyPurpose
 import kotlinx.coroutines.CancellationException
@@ -39,6 +40,9 @@ enum class AuthNotice {
 
     /** 5.2.1 성공 토스트 "비밀번호를 변경했어요" (2초) */
     PASSWORD_CHANGED,
+
+    /** 5.3.1 "탈퇴가 완료됐어요. 그동안 ORMO를 이용해 주셔서 감사해요" (로그인 화면에서 안내) */
+    WITHDRAWN,
 }
 
 /**
@@ -61,6 +65,8 @@ class AuthRepository(
     private val store: SessionStore,
     private val resetter: SessionResetter,
     private val scope: CoroutineScope,
+    /** 탈퇴 직전에 호출: 계정별로 남겨 둔 기기 데이터(최근 검색어·마지막 매장·알림 안내 횟수 등)를 지운다. 인자 = 계정 키(이메일) */
+    private val onWithdrawn: suspend (accountKey: String?) -> Unit = {},
 ) {
     private val _status = MutableStateFlow(AuthStatus.RESTORING)
     val status: StateFlow<AuthStatus> = _status
@@ -195,7 +201,7 @@ class AuthRepository(
 
     suspend fun signOut() = endSession(expired = false)
 
-    private suspend fun endSession(expired: Boolean, notice: AuthNotice? = null) {
+    private suspend fun endSession(expired: Boolean, notice: AuthNotice? = null, revokeOnServer: Boolean = !expired) {
         val rt = sessions.refreshToken
         persist = false
         sessions.clear()
@@ -206,7 +212,7 @@ class AuthRepository(
         _notice.value = notice ?: if (expired) AuthNotice.SESSION_EXPIRED else null
         _status.value = AuthStatus.SIGNED_OUT
         // 서버 폐기는 실패해도 로그아웃은 끝난 것이다 (만료로 끝난 세션의 토큰은 이미 거절된 것이라 보내지 않는다)
-        if (rt != null && !expired) {
+        if (rt != null && revokeOnServer) {
             scope.launch {
                 try {
                     api.logout(rt)
@@ -217,6 +223,33 @@ class AuthRepository(
                 }
             }
         }
+    }
+
+    // ---- 회원 탈퇴 ----
+
+    /**
+     * 비밀번호를 확인한 뒤 탈퇴 (5.3.1). 진행 중 주문이 있으면 화면에서 먼저 막고([com.ormo.domain.profile.WithdrawRules.gate]),
+     * 그 사이 생긴 경우는 서버가 거절한다([WithdrawFailure.ACTIVE_ORDERS]). 성공하면 기기 데이터를 지우고 로그아웃 + [AuthNotice.WITHDRAWN].
+     * 계정이 사라졌으므로 서버에 로그아웃 요청은 보내지 않는다.
+     */
+    suspend fun withdraw(password: String): Outcome<Unit, WithdrawFailure> {
+        val accountKey = _profile.value?.email
+        try {
+            api.withdraw(password)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return Outcome.Fail(AuthErrors.withdraw(e))
+        }
+        try {
+            onWithdrawn(accountKey)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // 기기 데이터 정리 실패가 탈퇴 완료를 막지 않는다
+        }
+        endSession(expired = false, notice = AuthNotice.WITHDRAWN, revokeOnServer = false)
+        return Outcome.Ok(Unit)
     }
 
     // ---- 비밀번호 ----
