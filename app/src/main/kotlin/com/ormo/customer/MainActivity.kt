@@ -6,7 +6,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import com.ormo.customer.ui.catalog.ComponentCatalog
 import com.ormo.customer.ui.theme.OrmoTheme
 
 class MainActivity : ComponentActivity() {
@@ -17,11 +16,9 @@ class MainActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
         )
+        val container = (application as OrmoApp).container
         setContent {
-            OrmoTheme {
-                // M0 동안은 컴포넌트 카탈로그를 첫 화면으로 둔다. M2 에서 스플래시·로그인으로 교체.
-                ComponentCatalog()
-            }
+            OrmoTheme { AppNav(container) }
         }
     }
 }
