@@ -41,28 +41,28 @@ class RemoteAuthApiTest {
     private fun bodyOf(req: okhttp3.mockwebserver.RecordedRequest) = Json.parseToJsonElement(req.body.readUtf8()).jsonObject
 
     @Test fun `인증코드 발송 - 경로와 본문과 응답`() = blocking {
-        server.enqueue(json("""{"expiresInSec":240,"resendAfterSec":45}"""))
-        val r = api.sendEmailCode("kim@eulji.ac.kr", VerifyPurpose.SIGNUP)
+        server.enqueue(json("""{"timestamp":"2026-11-23T10:00:00+09:00","status":200,"code":"SUCCESS","message":"인증코드를 보냈어요.","data":{"email":"kim@g.eulji.ac.kr","expiresInSeconds":240,"resendAvailableInSeconds":45}}"""))
+        val r = api.sendEmailCode("kim@g.eulji.ac.kr", VerifyPurpose.SIGNUP)
         assertEquals(SendCodeResult(240, 45), r)
         val req = server.takeRequest()
-        assertEquals("/api/v1/auth/email/send-code", req.path)
+        assertEquals("/api/v1/verifications/email", req.path)
         val b = bodyOf(req)
-        assertEquals("kim@eulji.ac.kr", b["email"].toString().trim('"'))
+        assertEquals("kim@g.eulji.ac.kr", b["email"].toString().trim('"'))
         assertEquals("SIGNUP", b["purpose"].toString().trim('"'))
     }
 
     @Test fun `인증코드 발송 - 응답에 값이 없으면 기본값`() = blocking {
         server.enqueue(json("{}"))
         assertEquals(SendCodeResult(300, 60), api.sendEmailCode("a@b.c", VerifyPurpose.PASSWORD_RESET))
-        server.enqueue(json("""{"expiresInSec":0,"resendAfterSec":"x"}"""))
+        server.enqueue(json("""{"expiresInSeconds":0,"resendAvailableInSeconds":"x"}"""))
         assertEquals(SendCodeResult(300, 60), api.sendEmailCode("a@b.c", VerifyPurpose.SIGNUP))
     }
 
     @Test fun `인증코드 확인 - 토큰을 돌려주고 없으면 Schema 오류`() = blocking {
-        server.enqueue(json("""{"verificationToken":"tok-1"}"""))
-        assertEquals("tok-1", api.verifyEmailCode("a@b.c", VerifyPurpose.SIGNUP, "123456"))
+        server.enqueue(json("""{"status":200,"code":"SUCCESS","message":"ok","data":{"verificationToken":"evt_1","expiresInSeconds":1800}}"""))
+        assertEquals("evt_1", api.verifyEmailCode("a@b.c", VerifyPurpose.SIGNUP, "123456"))
         val req = server.takeRequest()
-        assertEquals("/api/v1/auth/email/verify-code", req.path)
+        assertEquals("/api/v1/verifications/email/confirm", req.path)
         assertEquals("123456", bodyOf(req)["code"].toString().trim('"'))
 
         server.enqueue(json("{}"))
@@ -70,16 +70,27 @@ class RemoteAuthApiTest {
         Unit
     }
 
-    @Test fun `가입 - 약관 동의를 담아 보내고 토큰이 있으면 바로 로그인 세션`() = blocking {
-        server.enqueue(json("""{"accessToken":"a","refreshToken":"r","schoolId":"s1","name":"가을"}"""))
-        val s = api.signUp(SignUpRequest("kim@eulji.ac.kr", "가을", "abc12345", "tok", termsAgreed = true, privacyAgreed = true))
-        assertEquals(LoginSession("a", "r", "s1", "가을"), s)
+    @Test fun `가입 - 이메일은 보내지 않고 약관 둘을 목록으로 보낸다, 응답으로 바로 로그인 세션`() = blocking {
+        server.enqueue(
+            json(
+                """{"status":201,"code":"SUCCESS","message":"가입을 환영해요.","data":{"memberId":7,"name":"가을","email":"kim@g.eulji.ac.kr",
+                "school":{"schoolId":1,"name":"을지대학교","campus":"성남캠퍼스"},"accessToken":"a","refreshToken":"r","expiresIn":3600}}""",
+                201,
+            ),
+        )
+        val s = api.signUp(SignUpRequest("kim@g.eulji.ac.kr", "가을", "abc12345", "tok", termsAgreed = true, privacyAgreed = true))
+        assertEquals(LoginSession("a", "r", "1", "가을"), s)
         val req = server.takeRequest()
-        assertEquals("/api/v1/auth/signup", req.path)
+        assertEquals("POST", req.method)
+        assertEquals("/api/v1/members", req.path)
         val b = bodyOf(req)
         assertEquals("tok", b["verificationToken"].toString().trim('"'))
-        assertEquals("""{"terms":true,"privacy":true}""", b["consents"].toString())
+        assertNull(b["email"]) // 이메일은 토큰에 묶여 있다
         assertNull(b["nickname"]) // 닉네임 없음
+        assertEquals(
+            """[{"type":"SERVICE","version":"1.0","agreed":true},{"type":"PRIVACY","version":"1.0","agreed":true}]""",
+            b["agreements"].toString(),
+        )
     }
 
     @Test fun `가입 - 응답에 토큰이 없으면 null`() = blocking {
@@ -87,17 +98,20 @@ class RemoteAuthApiTest {
         assertNull(api.signUp(SignUpRequest("a@b.c", "n", "p", "t", true, true)))
     }
 
-    @Test fun `로그인 - 학교 id 는 있을 때만 보낸다`() = blocking {
-        server.enqueue(json("""{"accessToken":"a","refreshToken":"r"}"""))
-        val s = api.login("kim@eulji.ac.kr", "pw", schoolId = null, autoLogin = true)
-        assertEquals(LoginSession("a", "r", null, null), s)
-        val first = bodyOf(server.takeRequest())
-        assertNull(first["schoolId"])
-        assertEquals("true", first["autoLogin"].toString())
+    @Test fun `로그인 - 이메일과 비밀번호만 보내고 이름·학교는 member 에서 읽는다`() = blocking {
+        server.enqueue(
+            json("""{"status":200,"code":"SUCCESS","message":"로그인했어요.","data":{"accessToken":"a","refreshToken":"r","expiresIn":3600,"member":{"memberId":7,"name":"가을","schoolId":1}}}"""),
+        )
+        val s = api.login("kim@g.eulji.ac.kr", "pw", schoolId = "1", autoLogin = true)
+        assertEquals(LoginSession("a", "r", "1", "가을"), s)
+        val req = server.takeRequest()
+        assertEquals("/api/v1/auth/login", req.path)
+        assertEquals(setOf("email", "password"), bodyOf(req).keys)
+    }
 
+    @Test fun `로그인 - member 가 없어도 토큰만 있으면 된다`() = blocking {
         server.enqueue(json("""{"accessToken":"a","refreshToken":"r"}"""))
-        api.login("kim@eulji.ac.kr", "pw", schoolId = "s1", autoLogin = false)
-        assertEquals("s1", bodyOf(server.takeRequest())["schoolId"].toString().trim('"'))
+        assertEquals(LoginSession("a", "r", null, null), api.login("kim@g.eulji.ac.kr", "pw", null, true))
     }
 
     @Test fun `로그인 - 토큰이 빠진 응답은 Schema 오류`() = blocking {
@@ -107,8 +121,8 @@ class RemoteAuthApiTest {
     }
 
     @Test fun `갱신 - 회전된 토큰은 있을 때만`() = blocking {
-        server.enqueue(json("""{"accessToken":"a2","refreshToken":"r2","name":"가을"}"""))
-        assertEquals(RefreshResult("a2", "r2", "가을"), api.refresh("r1"))
+        server.enqueue(json("""{"accessToken":"a2","refreshToken":"r2","expiresIn":3600}"""))
+        assertEquals(RefreshResult("a2", "r2", null), api.refresh("r1"))
         server.enqueue(json("""{"accessToken":"a3"}"""))
         assertEquals(RefreshResult("a3", null, null), api.refresh("r2"))
         server.enqueue(json("""{"nope":1}"""))
@@ -116,35 +130,52 @@ class RemoteAuthApiTest {
         Unit
     }
 
-    @Test fun `로그아웃 비밀번호 재설정 변경 경로와 본문`() = blocking {
-        repeat(3) { server.enqueue(json("{}")) }
+    @Test fun `로그아웃 비밀번호 재설정 변경 탈퇴 - 경로와 메서드와 본문`() = blocking {
+        repeat(4) { server.enqueue(json("""{"status":200,"code":"SUCCESS","message":"ok"}""")) }
         api.logout("r1")
         api.resetPassword("a@b.c", "tok", "new12345")
         api.changePassword("old12345", "new12345")
+        api.withdraw("pw12345")
 
         val logout = server.takeRequest()
         assertEquals("/api/v1/auth/logout", logout.path)
         assertEquals("r1", bodyOf(logout)["refreshToken"].toString().trim('"'))
 
         val reset = server.takeRequest()
-        assertEquals("/api/v1/auth/password/reset", reset.path)
+        assertEquals("POST", reset.method)
+        assertEquals("/api/v1/members/password-reset", reset.path)
         val rb = bodyOf(reset)
         assertEquals("tok", rb["verificationToken"].toString().trim('"'))
         assertEquals("new12345", rb["newPassword"].toString().trim('"'))
+        assertNull(rb["email"]) // 이메일은 토큰에 묶여 있다
 
         val change = server.takeRequest()
-        assertEquals("/api/v1/me/password", change.path)
+        assertEquals("PATCH", change.method)
+        assertEquals("/api/v1/members/me/password", change.path)
         val cb = bodyOf(change)
         assertEquals("old12345", cb["currentPassword"].toString().trim('"'))
         assertEquals("new12345", cb["newPassword"].toString().trim('"'))
+
+        val withdraw = server.takeRequest()
+        assertEquals("DELETE", withdraw.method)
+        assertEquals("/api/v1/members/me", withdraw.path)
+        assertEquals("pw12345", bodyOf(withdraw)["password"].toString().trim('"'))
     }
 
-    @Test fun `내 정보`() = blocking {
-        server.enqueue(json("""{"name":"가을","email":"kim@eulji.ac.kr"}"""))
-        assertEquals(UserProfile("가을", "kim@eulji.ac.kr"), api.me())
-        assertEquals("GET", server.takeRequest().method)
+    @Test fun `내 정보 - 학교 이름까지 읽는다`() = blocking {
+        server.enqueue(
+            json("""{"status":200,"code":"SUCCESS","message":"ok","data":{"memberId":7,"name":"가을","email":"kim@g.eulji.ac.kr","school":{"schoolId":1,"name":"을지대학교","campus":"성남캠퍼스"},"createdAt":"2026-11-01T09:00:00+09:00"}}"""),
+        )
+        assertEquals(UserProfile("가을", "kim@g.eulji.ac.kr", "을지대학교"), api.me())
+        val req = server.takeRequest()
+        assertEquals("GET", req.method)
+        assertEquals("/api/v1/members/me", req.path)
 
-        server.enqueue(json("""{"email":"kim@eulji.ac.kr"}"""))
+        // 학교를 못 찾으면 BE 가 빈 값을 준다 → 학교 이름 없음
+        server.enqueue(json("""{"name":"가을","email":"kim@g.eulji.ac.kr","school":{"schoolId":null,"name":"","campus":""}}"""))
+        assertEquals(UserProfile("가을", "kim@g.eulji.ac.kr", null), api.me())
+
+        server.enqueue(json("""{"email":"kim@g.eulji.ac.kr"}"""))
         assertFailsWith<AppError.Schema> { api.me() }
         Unit
     }

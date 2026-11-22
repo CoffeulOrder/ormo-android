@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 디버그 빌드만: 내 PC 의 개발 서버(http://10.0.2.2:8080)에 평문 HTTP 로 붙을 수 있게 한다. 릴리스는 https 만. -->
+    <application android:networkSecurityConfig="@xml/network_security_config" />
+
+</manifest>

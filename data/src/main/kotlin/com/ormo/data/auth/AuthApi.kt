@@ -11,6 +11,7 @@ import com.ormo.domain.auth.UserProfile
 import com.ormo.domain.auth.VerifyPurpose
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -26,22 +27,23 @@ data class LoginSession(
 data class RefreshResult(val accessToken: String, val refreshToken: String? = null, val name: String? = null)
 
 /**
- * 인증 API (RN `api/auth-api.ts` + 새 디자인 명세 반영). 구현은 실패를 [AppError] 로 던진다
- * (표시용 실패 종류로의 변환은 [AuthErrors]).
+ * 인증 API. **실제 BE(`Coffeul/Backend`, 2026-11 기준) 계약**을 따른다 — 기준 URL 은 `…/api/v1` 까지 포함한다.
+ * 구현은 실패를 [AppError] 로 던진다 (표시용 실패 종류로의 변환은 [AuthErrors]).
  *
- *   POST /auth/email/send-code    { email, purpose }                       -> { expiresInSec, resendAfterSec }
- *   POST /auth/email/verify-code  { email, purpose, code }                 -> { verificationToken }
- *   POST /auth/signup             { email, name, password, verificationToken, consents:{terms,privacy} }
- *                                                                          -> { accessToken?, refreshToken?, schoolId?, name? }
- *   POST /auth/login              { email, password, schoolId?, autoLogin } -> { accessToken, refreshToken, schoolId?, name? }
- *   POST /auth/refresh            { refreshToken }                          -> { accessToken, refreshToken?, name? }
- *   POST /auth/logout             { refreshToken }                          (본문 무시)
- *   POST /auth/password/reset     { email, verificationToken, newPassword }
- *   POST /me/password             { currentPassword, newPassword }          (성공하면 서버가 모든 기기 세션 폐기 — 디자인 5.2.1)
- *   GET  /me                      -> { name, email? }
+ *   POST   /verifications/email          { email, purpose }            -> { email, expiresInSeconds, resendAvailableInSeconds }   (SM-1)
+ *   POST   /verifications/email/confirm  { email, purpose, code }      -> { verificationToken, expiresInSeconds }                  (SM-2)
+ *   POST   /members                      { verificationToken, name, password, agreements:[{type,version,agreed}] }
+ *                                                                      -> { memberId, name, email, school:{schoolId,name,campus}, accessToken, refreshToken, expiresIn }  (SM-3)
+ *   POST   /auth/login                   { email, password }           -> { accessToken, refreshToken, expiresIn, member:{memberId,name,schoolId} }  (MS-1)
+ *   POST   /auth/refresh                 { refreshToken }              -> { accessToken, refreshToken, expiresIn }                 (MS-3, 회전)
+ *   POST   /auth/logout                  { refreshToken }              (Authorization 필요)                                        (MS-4)
+ *   POST   /members/password-reset       { verificationToken, newPassword }  (이메일은 토큰에 묶임)                                 (SM-6)
+ *   PATCH  /members/me/password          { currentPassword, newPassword }    (성공하면 서버가 모든 기기 세션 폐기)                    (SM-5)
+ *   GET    /members/me                   -> { memberId, name, email, school:{schoolId,name,campus}, createdAt }                    (SM-4)
+ *   DELETE /members/me                   { password }                  (진행 중 주문 있으면 409 U005)                              (SM-7)
  *
- * ⚠️ 경로/형태는 협의된 스펙이 없어 앱이 가정한 것이다 (RN 앱과 같은 가정 + 새 디자인: 닉네임 없음, 이름, 현재 비밀번호 방식).
- * 서버는 인증 토큰이 해당 이메일·용도로 발급된 것인지, 이메일 도메인·`+` 별칭 규칙을 반드시 다시 검증해야 한다.
+ * 로그인은 이메일·비밀번호만 보낸다 — 학교는 서버가 이메일 도메인으로 정하고, 자동 로그인 여부는 앱(저장소)의 몫이다.
+ * 가입은 이메일을 보내지 않는다 — 인증 토큰에 묶인 이메일을 서버가 쓴다 (바꿔치기 방지).
  */
 interface AuthApi {
     suspend fun sendEmailCode(email: String, purpose: VerifyPurpose): SendCodeResult
@@ -64,7 +66,7 @@ class RemoteAuthApi(private val client: ApiClient) : AuthApi {
 
     override suspend fun sendEmailCode(email: String, purpose: VerifyPurpose): SendCodeResult {
         val raw = client.post(
-            "/auth/email/send-code",
+            "/verifications/email",
             buildJsonObject {
                 put("email", email)
                 put("purpose", purpose.name)
@@ -72,42 +74,48 @@ class RemoteAuthApi(private val client: ApiClient) : AuthApi {
         )
         val o = raw as? JsonObject
         return SendCodeResult(
-            expiresInSec = o?.get("expiresInSec").intValue()?.takeIf { it > 0 } ?: DEFAULT_CODE_TTL_SEC,
-            resendAfterSec = o?.get("resendAfterSec").intValue()?.takeIf { it > 0 } ?: DEFAULT_RESEND_SEC,
+            expiresInSec = o?.get("expiresInSeconds").intValue()?.takeIf { it > 0 } ?: DEFAULT_CODE_TTL_SEC,
+            resendAfterSec = o?.get("resendAvailableInSeconds").intValue()?.takeIf { it > 0 } ?: DEFAULT_RESEND_SEC,
         )
     }
 
     override suspend fun verifyEmailCode(email: String, purpose: VerifyPurpose, code: String): String {
         val raw = client.post(
-            "/auth/email/verify-code",
+            "/verifications/email/confirm",
             buildJsonObject {
                 put("email", email)
                 put("purpose", purpose.name)
                 put("code", code)
             },
         )
-        return (raw as? JsonObject)?.get("verificationToken").str() ?: throw AppError.Schema("verify-code")
+        return (raw as? JsonObject)?.get("verificationToken").str() ?: throw AppError.Schema("confirm")
     }
 
     override suspend fun signUp(req: SignUpRequest): LoginSession? {
         val raw = client.post(
-            "/auth/signup",
+            "/members",
             buildJsonObject {
-                put("email", req.email)
+                put("verificationToken", req.verificationToken)
                 put("name", req.name)
                 put("password", req.password)
-                put("verificationToken", req.verificationToken)
+                // 추천인 코드: BE 에 아직 필드가 없다 (베타 꺼짐). 값이 있을 때만 싣는다.
                 if (!req.referralCode.isNullOrBlank()) put("referralCode", req.referralCode)
                 put(
-                    "consents",
-                    buildJsonObject {
-                        put("terms", req.termsAgreed)
-                        put("privacy", req.privacyAgreed)
+                    "agreements",
+                    buildJsonArray {
+                        add(agreement("SERVICE", req.termsAgreed))
+                        add(agreement("PRIVACY", req.privacyAgreed))
                     },
                 )
             },
         )
-        return AuthParsers.optionalLoginSession(raw)
+        return AuthParsers.registered(raw)
+    }
+
+    private fun agreement(type: String, agreed: Boolean) = buildJsonObject {
+        put("type", type)
+        put("version", TERMS_VERSION)
+        put("agreed", agreed)
     }
 
     override suspend fun login(email: String, password: String, schoolId: String?, autoLogin: Boolean): LoginSession {
@@ -116,11 +124,9 @@ class RemoteAuthApi(private val client: ApiClient) : AuthApi {
             buildJsonObject {
                 put("email", email)
                 put("password", password)
-                if (schoolId != null) put("schoolId", schoolId)
-                put("autoLogin", autoLogin)
             },
         )
-        return AuthParsers.optionalLoginSession(raw) ?: throw AppError.Schema("login")
+        return AuthParsers.loggedIn(raw) ?: throw AppError.Schema("login")
     }
 
     override suspend fun refresh(refreshToken: String): RefreshResult {
@@ -132,11 +138,11 @@ class RemoteAuthApi(private val client: ApiClient) : AuthApi {
         client.post("/auth/logout", buildJsonObject { put("refreshToken", refreshToken) })
     }
 
+    /** 이메일은 보내지 않는다 — 인증 토큰(PASSWORD_RESET)에 묶여 있다 */
     override suspend fun resetPassword(email: String, verificationToken: String, newPassword: String) {
         client.post(
-            "/auth/password/reset",
+            "/members/password-reset",
             buildJsonObject {
-                put("email", email)
                 put("verificationToken", verificationToken)
                 put("newPassword", newPassword)
             },
@@ -144,8 +150,8 @@ class RemoteAuthApi(private val client: ApiClient) : AuthApi {
     }
 
     override suspend fun changePassword(currentPassword: String, newPassword: String) {
-        client.post(
-            "/me/password",
+        client.patch(
+            "/members/me/password",
             buildJsonObject {
                 put("currentPassword", currentPassword)
                 put("newPassword", newPassword)
@@ -153,32 +159,45 @@ class RemoteAuthApi(private val client: ApiClient) : AuthApi {
         )
     }
 
-    override suspend fun me(): UserProfile = AuthParsers.profile(client.get("/me"))
+    override suspend fun me(): UserProfile = AuthParsers.profile(client.get("/members/me"))
 
-    /** ⚠️ 경로/본문은 앱이 가정한 것 (BE 확정 전): `POST /me/withdraw { password }` */
     override suspend fun withdraw(password: String) {
-        client.post("/me/withdraw", buildJsonObject { put("password", password) })
+        client.delete("/members/me", buildJsonObject { put("password", password) })
     }
 
     companion object {
         /** 서버 응답이 없을 때의 기본값 (디자인 8.1: 화면 예시 5:00, 재발송 1분) */
         const val DEFAULT_CODE_TTL_SEC = 300
         const val DEFAULT_RESEND_SEC = 60
+
+        /**
+         * 동의한 약관의 버전. BE 는 길이(20자 이하)만 검사하고 저장한다.
+         * TODO(BE·법무): 약관 버전 표기 확정 — 약관 본문이 바뀌면 같이 올린다.
+         */
+        const val TERMS_VERSION = "1.0"
     }
 }
 
 /** 응답 검증 (파서). 형태가 틀리면 [AppError.Schema]. */
 internal object AuthParsers {
-    fun optionalLoginSession(raw: JsonElement?): LoginSession? {
+    /** 로그인 응답: 토큰은 최상위, 이름·학교는 `member` 안 */
+    fun loggedIn(raw: JsonElement?): LoginSession? {
         val o = raw as? JsonObject ?: return null
+        val member = o["member"] as? JsonObject
+        return session(o, schoolId = member?.get("schoolId").id(), name = member?.get("name").str())
+    }
+
+    /** 가입 응답: 토큰은 최상위, 이름은 최상위, 학교는 `school` 안 */
+    fun registered(raw: JsonElement?): LoginSession? {
+        val o = raw as? JsonObject ?: return null
+        val school = o["school"] as? JsonObject
+        return session(o, schoolId = school?.get("schoolId").id(), name = o["name"].str())
+    }
+
+    private fun session(o: JsonObject, schoolId: String?, name: String?): LoginSession? {
         val access = o["accessToken"].str() ?: return null
         val refresh = o["refreshToken"].str() ?: return null
-        return LoginSession(
-            accessToken = access,
-            refreshToken = refresh,
-            schoolId = o["schoolId"].id(),
-            name = o["name"].str(),
-        )
+        return LoginSession(accessToken = access, refreshToken = refresh, schoolId = schoolId, name = name)
     }
 
     fun refreshResult(raw: JsonElement?): RefreshResult {
@@ -190,6 +209,7 @@ internal object AuthParsers {
     fun profile(raw: JsonElement?): UserProfile {
         val o = raw as? JsonObject ?: throw AppError.Schema("me")
         val name = o["name"].str() ?: throw AppError.Schema("me.name")
-        return UserProfile(name, o["email"].str())
+        val schoolName = (o["school"] as? JsonObject)?.get("name").str()?.takeIf { it.isNotBlank() }
+        return UserProfile(name, o["email"].str(), schoolName)
     }
 }

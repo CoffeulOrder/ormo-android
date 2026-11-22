@@ -17,7 +17,7 @@ import kotlinx.serialization.json.put
 
 /**
  * 개발용 가짜 서버. BE 가 준비되기 전에 화면 흐름을 끝까지 눌러 보려고 앱 안에 둔다 (메모리에만 있고 앱을 다시 켜면 초기화).
- * `BuildConfig.USE_FAKE_BACKEND` 가 true 일 때만 쓴다. BE 연동(M8) 때 이 패키지를 지운다.
+ * `BuildConfig.USE_FAKE_AUTH` 가 true 일 때만 쓴다 (실제 BE 와 인증 계약이 맞춰져 있어 `-Pormo.realAuth=true` 로 끌 수 있다). 나머지 BE 가 완성되면 이 패키지를 지운다 (BE_GAP_M8.md).
  *
  * 시험용 계정·규칙
  * - 로그인: `kim@eulji.ac.kr` / `abc12345` (이름 "가을"). 5번 연속 틀리면 15분 잠금. `banned@…` 는 이용 제한 계정.

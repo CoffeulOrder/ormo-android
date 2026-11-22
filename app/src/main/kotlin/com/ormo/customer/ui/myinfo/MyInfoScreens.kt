@@ -168,7 +168,7 @@ fun MyInfoScreen(
             ) {
                 Text(view.name.ifEmpty { " " }, style = OrmoType.bodyXlSemibold, color = c.textPrimary)
                 view.email?.let { Text(it, style = OrmoType.bodyMdRegular, color = c.textSecondary) }
-                school?.let { Text(it, style = OrmoType.bodySmRegular, color = c.textSecondary) }
+                (profile?.schoolName ?: school)?.let { Text(it, style = OrmoType.bodySmRegular, color = c.textSecondary) }
             }
             Column(Modifier.padding(top = Space.s16)) {
                 view.rows.forEach { row ->
