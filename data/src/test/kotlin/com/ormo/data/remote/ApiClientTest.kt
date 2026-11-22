@@ -283,6 +283,31 @@ class ApiClientTest {
         assertEquals("old", sessions.accessToken)
     }
 
+    @Test fun `토큰 문제가 아닌 401(현재 비밀번호 틀림 U004)은 갱신하지 않고 그대로 던진다`() = blocking {
+        sessions.set("old", "r1")
+        route { if (it.path == "/api/v1/members/me") json("""{"status":401,"code":"U004","message":"현재 비밀번호가 올바르지 않아요."}""", 401) else json("{}") }
+        val e = assertFailsWith<AppError.Api> { client.delete("/members/me", buildJsonObject { put("password", "x") }) }
+        assertEquals(401, e.status)
+        assertEquals("U004", e.code)
+        assertEquals(0, refreshCalls.get())
+        assertEquals("old", sessions.accessToken) // 세션도 그대로
+    }
+
+    @Test fun `DELETE 와 PATCH 도 본문과 인증 헤더를 싣는다`() = blocking {
+        sessions.set("tok", "r1")
+        server.enqueue(json("{}"))
+        server.enqueue(json("{}"))
+        client.delete("/members/me", buildJsonObject { put("password", "pw") })
+        client.patch("/members/me/password", buildJsonObject { put("newPassword", "n") })
+        val del = server.takeRequest()
+        assertEquals("DELETE", del.method)
+        assertEquals("Bearer tok", del.getHeader("Authorization"))
+        assertEquals("""{"password":"pw"}""", del.body.readUtf8())
+        val patch = server.takeRequest()
+        assertEquals("PATCH", patch.method)
+        assertEquals("""{"newPassword":"n"}""", patch.body.readUtf8())
+    }
+
     @Test fun `리프레시 토큰이 없으면 401 을 그대로 던진다`() = blocking {
         sessions.set("old") // 리프레시 토큰 없음
         routeRefreshable()

@@ -50,4 +50,4 @@ M6 로직(`MyInfoRules`, `WithdrawRules`, `NotificationSettings`, `NotificationS
 
 ## 이어서
 
-M7(공통 마감: 접근성·오류 처리 점검·푸시/FCM)과 M8(BE 연결: `fake/` 삭제, `USE_FAKE_BACKEND=false`)이 남았습니다. 아직 Figma 와 안 맞춘 화면 목록은 [PR_FIGMA_FIDELITY.md](PR_FIGMA_FIDELITY.md) 참고.
+M7(베타 제외 기능 준비)과 M8(BE 연결·안정화·릴리스)이 남았습니다. (정정: 처음에 'M7 = 공통 마감'이라 적었으나 계획서의 M7 은 베타 제외 기능이고, 접근성·FCM 등은 M8 입니다.) 아직 Figma 와 안 맞춘 화면 목록은 [PR_FIGMA_FIDELITY.md](PR_FIGMA_FIDELITY.md) 참고.

@@ -11,10 +11,11 @@ import com.ormo.domain.auth.VerifyCodeFailure
 import com.ormo.domain.profile.WithdrawFailure
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import java.time.Instant
 
 /**
- * 서버 오류 → 화면에 보여줄 실패 종류. **BE 오류 코드 매핑은 전부 여기 한 곳** (확정 전이라 앱이 가정한 코드와
- * BE 문서의 코드를 둘 다 받는다 — `BE_COMPARISON.md` 부록 A). BE 가 확정되면 이 파일만 고친다.
+ * 서버 오류 → 화면에 보여줄 실패 종류. **BE 오류 코드 매핑은 전부 여기 한 곳**.
+ * 실제 BE 의 코드(AUTH_00x · EV00x · U00x · C00x)를 기준으로 하고, 앱이 예전에 가정했던 이름도 받아 둔다.
  *
  * 코드를 모르는 오류는 상태 코드로 판단하고, 그래도 모르면 Other (일반 실패 문구).
  */
@@ -32,21 +33,22 @@ object AuthErrors {
 
     private val CODE_INVALID = setOf("CODE_INVALID", "EV004")
     private val CODE_EXPIRED = setOf("CODE_EXPIRED", "EV005")
-    private val CODE_TOO_MANY = setOf("TOO_MANY_ATTEMPTS", "EV007")
+    // BE: 확인 5회 실패하면 코드가 폐기되어 EV005(410) 로 온다 → 만료와 같은 안내 ("다시 요청해주세요"). EV007 은 메일 발송 실패(503)다.
+    private val CODE_TOO_MANY = setOf("TOO_MANY_ATTEMPTS")
 
     private val VERIFICATION_INVALID = setOf("VERIFICATION_INVALID", "EV008")
     private val PASSWORD_INVALID = setOf("PASSWORD_INVALID", "U002")
     private val CONSENT_REQUIRED = setOf("CONSENT_REQUIRED", "U003")
     private val PASSWORD_SAME = setOf("PASSWORD_SAME_AS_OLD", "PASSWORD_SAME", "SAME_PASSWORD")
-    private val ACTIVE_ORDERS = setOf("ACTIVE_ORDER_EXISTS", "ORDER_IN_PROGRESS", "HAS_ACTIVE_ORDERS")
-    private val CURRENT_PASSWORD_WRONG = setOf("CURRENT_PASSWORD_MISMATCH", "WRONG_CURRENT_PASSWORD")
+    private val ACTIVE_ORDERS = setOf("ACTIVE_ORDER_EXISTS", "ORDER_IN_PROGRESS", "HAS_ACTIVE_ORDERS", "U005")
+    private val CURRENT_PASSWORD_WRONG = setOf("CURRENT_PASSWORD_MISMATCH", "WRONG_CURRENT_PASSWORD", "U004")
 
-    fun login(e: Throwable): LoginFailure {
+    fun login(e: Throwable, now: Instant = Instant.now()): LoginFailure {
         val api = e as? AppError.Api ?: return if (e is AppError.Network) LoginFailure.Network else LoginFailure.Other
         val code = api.code
         return when {
             api.status == 423 || code in LOCKED ->
-                LoginFailure.Locked(retryAfterSec(api.body, "retryAfterSec") ?: DEFAULT_LOCK_SEC)
+                LoginFailure.Locked(retryAfterSec(api.body, "retryAfterSec") ?: secondsUntil(api.body, "lockedUntil", now) ?: DEFAULT_LOCK_SEC)
             code in RESTRICTED || (api.status == 403 && code == null) -> LoginFailure.Restricted
             code in INVALID_CREDENTIALS || api.status == 401 -> LoginFailure.InvalidCredentials
             api.status == 429 -> LoginFailure.Locked(retryAfterSec(api.body, "retryAfterSec") ?: DEFAULT_LOCK_SEC)
@@ -110,6 +112,16 @@ object AuthErrors {
             code in CURRENT_PASSWORD_WRONG || code in INVALID_CREDENTIALS -> WithdrawFailure.WRONG_PASSWORD
             else -> WithdrawFailure.OTHER
         }
+    }
+
+    /** BE 는 잠김을 `data.lockedUntil`(ISO-8601 시각)로 알려 준다 → 남은 초 (이미 지났거나 형식이 틀리면 null) */
+    private fun secondsUntil(body: JsonElement?, field: String, now: Instant): Int? {
+        val o = body as? JsonObject ?: return null
+        val text = ((o["data"] as? JsonObject)?.get(field) ?: o[field]).let { (it as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { p -> p.isString }?.content }
+            ?: return null
+        val until = try { Instant.parse(text) } catch (_: java.time.format.DateTimeParseException) { return null }
+        val sec = java.time.Duration.between(now, until).seconds
+        return if (sec > 0) minOf(sec, Int.MAX_VALUE.toLong()).toInt() else null
     }
 
     /** 본문(또는 봉투의 data)에서 양의 정수 필드를 읽는다 */

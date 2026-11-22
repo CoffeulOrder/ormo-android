@@ -52,8 +52,12 @@ class ApiClient(
     suspend fun put(path: String, body: JsonElement? = null, headers: Map<String, String> = emptyMap()): JsonElement? =
         request("PUT", path, body, headers)
 
-    suspend fun delete(path: String, headers: Map<String, String> = emptyMap()): JsonElement? =
-        request("DELETE", path, null, headers)
+    suspend fun patch(path: String, body: JsonElement? = null, headers: Map<String, String> = emptyMap()): JsonElement? =
+        request("PATCH", path, body, headers)
+
+    /** BE 의 탈퇴(`DELETE /members/me`)는 본문(비밀번호)을 받는다 */
+    suspend fun delete(path: String, body: JsonElement? = null, headers: Map<String, String> = emptyMap()): JsonElement? =
+        request("DELETE", path, body, headers)
 
     suspend fun request(
         method: String,
@@ -65,7 +69,10 @@ class ApiClient(
         try {
             return send(method, path, body, token, headers)
         } catch (e: AppError.Api) {
-            val canRefresh = e.status == 401 && path !in NO_REFRESH && sessions.hasRefreshToken
+            // 401 이라도 "토큰이 만료됐다"는 뜻일 때만 갱신한다. BE 는 현재 비밀번호가 틀려도 401(U004)을 주므로,
+            // 코드가 있고 C002(다시 로그인) 가 아니면 갱신하지 않고 그대로 돌려준다 (불필요한 토큰 회전 방지).
+            val tokenProblem = e.code == null || e.code == TOKEN_INVALID_CODE
+            val canRefresh = e.status == 401 && tokenProblem && path !in NO_REFRESH && sessions.hasRefreshToken
             if (!canRefresh) throw e
             val fresh = sessions.refresh(token) { rt -> refreshCall(rt) } ?: throw e
             return send(method, path, body, fresh, headers)
@@ -92,7 +99,8 @@ class ApiClient(
         headers.forEach { (k, v) -> builder.header(k, v) }
         val requestBody = when {
             body != null -> json.encodeToString(JsonElement.serializer(), body).toRequestBody(JSON_TYPE)
-            method == "POST" || method == "PUT" -> "".toRequestBody(JSON_TYPE)
+            method == "POST" || method == "PUT" || method == "PATCH" -> "".toRequestBody(JSON_TYPE)
+            method == "DELETE" -> null
             else -> null
         }
         builder.method(method, requestBody)
@@ -151,6 +159,9 @@ class ApiClient(
     companion object {
         /** 401 이 와도 갱신을 시도하지 않는 경로 (로그인 실패/갱신 자체의 거절은 "세션 만료" 가 아니다) */
         val NO_REFRESH = setOf("/auth/login", "/auth/refresh")
+
+        /** BE 공통 오류 C002: 액세스 토큰이 없거나 틀리거나 만료 */
+        const val TOKEN_INVALID_CODE = "C002"
         private val ENVELOPE_KEYS = listOf("timestamp", "status", "code", "message")
         private val JSON_TYPE = "application/json; charset=utf-8".toMediaType()
 

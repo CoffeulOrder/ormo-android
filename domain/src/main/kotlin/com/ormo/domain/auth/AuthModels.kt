@@ -74,7 +74,7 @@ enum class PasswordFailure {
 data class SchoolDomain(val domain: String, val schoolId: String, val schoolName: String)
 
 /** 내 정보 (디자인 5.1.1: 이름만 표시, 닉네임 없음) */
-data class UserProfile(val name: String, val email: String?)
+data class UserProfile(val name: String, val email: String?, val schoolName: String? = null)
 
 /** 인증코드 확인 실패: 코드 문제(틀림·만료·횟수 초과)이거나 확인 자체가 안 된 경우 */
 sealed interface VerifyCodeFailure {

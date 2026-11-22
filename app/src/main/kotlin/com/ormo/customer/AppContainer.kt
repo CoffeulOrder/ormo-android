@@ -22,7 +22,6 @@ import com.ormo.customer.session.KeystoreSessionStore
 import com.ormo.data.auth.AuthApi
 import com.ormo.data.auth.AuthRepository
 import com.ormo.data.auth.RemoteAuthApi
-import com.ormo.data.auth.RemoteSchoolDirectoryApi
 import com.ormo.data.auth.SchoolDirectoryApi
 import com.ormo.data.remote.ApiClient
 import com.ormo.data.remote.SessionManager
@@ -41,11 +40,15 @@ class AppContainer(context: Context) {
     val sessions = SessionManager()
     private val store = KeystoreSessionStore(context)
 
-    private val fake: FakeBackend? = if (BuildConfig.USE_FAKE_BACKEND) FakeBackend() else null
-    private val client: ApiClient? = if (fake == null) ApiClient(BuildConfig.API_BASE_URL, sessions) else null
+    // 인증은 실제 BE 와 계약이 맞다 (USE_FAKE_AUTH=false). 나머지는 BE 에 없는 부분이 있어 USE_FAKE_BACKEND 로 따로 정한다.
+    private val fake: FakeBackend? = if (BuildConfig.USE_FAKE_AUTH) FakeBackend() else null
+    private val client: ApiClient? =
+        if (!BuildConfig.USE_FAKE_AUTH || !BuildConfig.USE_FAKE_BACKEND) ApiClient(BuildConfig.API_BASE_URL, sessions) else null
 
     val authApi: AuthApi = fake?.auth ?: RemoteAuthApi(client!!)
-    val schools: SchoolDirectoryApi = fake?.schools ?: RemoteSchoolDirectoryApi(client!!)
+
+    // BE 에 학교 목록 API 가 아직 없어 앱에 넣어 둔 목록을 쓴다 (TODO(BE): GET /schools → RemoteSchoolDirectoryApi)
+    val schools: SchoolDirectoryApi = fake?.schools ?: com.ormo.data.auth.BundledSchoolDirectory()
 
     val cart = CartHolder()
     val toasts = ToastBus()
@@ -135,7 +138,7 @@ class AppContainer(context: Context) {
 
     // ---- 매장·메뉴 (M3) ----
     // BE 가 없어 가짜 데이터를 쓴다 (BuildConfig.USE_FAKE_BACKEND). 메뉴 캐시·최근 검색어는 백업 제외 영역에 둔다.
-    private val menuApi = if (fake != null) FakeMenuApi() else com.ormo.data.menu.RemoteMenuApi(client!!)
+    private val menuApi = if (BuildConfig.USE_FAKE_BACKEND) FakeMenuApi() else com.ormo.data.menu.RemoteMenuApi(client!!)
     val menus = MenuRepository(menuApi, FileMenuCache(File(context.noBackupFilesDir, "menu")), appScope)
     val stores = StoreRepository(FakeStoreDirectory(), PrefsSelectedStoreStore(context))
     val recentSearches = RecentSearchRepository(FileRecentSearchStore(File(context.noBackupFilesDir, "recent-searches.json")))
