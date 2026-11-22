@@ -60,7 +60,7 @@ fun FormScreen(
                         title,
                         style = OrmoType.displayXsSemibold,
                         color = c.textPrimary,
-                        modifier = Modifier.padding(vertical = Space.s12).semantics { heading() },
+                        modifier = Modifier.padding(vertical = 10.dp).semantics { heading() },
                     )
                 }
                 content()

@@ -208,7 +208,7 @@ fun OrmoPasswordField(
         autoFocus = autoFocus,
         trailing = {
             Icon(
-                if (visible) OrmoIcons.Eye else OrmoIcons.EyeOff,
+                if (visible) OrmoIcons.EyeOff else OrmoIcons.Eye,
                 contentDescription = if (visible) "비밀번호 숨기기" else "비밀번호 표시",
                 tint = c.iconSecondary,
                 modifier = Modifier

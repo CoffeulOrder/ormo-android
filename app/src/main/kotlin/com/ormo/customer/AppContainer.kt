@@ -4,6 +4,12 @@ import android.content.Context
 import com.ormo.core.SessionResetter
 import com.ormo.customer.fake.FakeBackend
 import com.ormo.customer.fake.FakeMenuApi
+import com.ormo.customer.fake.FakePaymentServer
+import com.ormo.customer.session.PrefsPaymentMethodStore
+import com.ormo.customer.session.PrefsPendingPaymentStore
+import com.ormo.core.Resettable
+import com.ormo.data.payment.PaymentCoordinator
+import kotlinx.coroutines.launch
 import com.ormo.customer.fake.FakeStoreDirectory
 import com.ormo.customer.session.PrefsSelectedStoreStore
 import com.ormo.data.menu.FileMenuCache
@@ -42,9 +48,25 @@ class AppContainer(context: Context) {
     val schools: SchoolDirectoryApi = fake?.schools ?: RemoteSchoolDirectoryApi(client!!)
 
     val cart = CartHolder()
+    val toasts = ToastBus()
 
-    /** 로그아웃·만료 때 비울 개인 데이터 저장소들. 마지막 매장·최근 검색어는 계정별로 남기는 게 명세 의도라 넣지 않는다 (PR M3 참고). */
-    val resetter = SessionResetter(listOf(cart))
+    // ---- 주문·결제 (M4) ----
+    // BE·PG 가 없어 가짜 서버와 가짜 PG 창을 쓴다 (FakePaymentServer). 결제 진행은 앱 범위 하나 — 화면이 사라져도 결제 확인은 이어진다.
+    private val storeDirectory = FakeStoreDirectory()
+    val fakePayments = FakePaymentServer(storeDirectory, currentStoreId = { cart.storeId })
+    private val pendingPayments = PrefsPendingPaymentStore(context)
+    val payments = PaymentCoordinator(fakePayments.orderApi, fakePayments.gateway, pendingPayments)
+    val paymentMethods = PrefsPaymentMethodStore(context)
+
+    /** 로그아웃·만료 때 비울 개인 데이터. 마지막 매장·최근 검색어는 계정별로 남기는 게 명세 의도라 넣지 않는다 (PR M3 참고). */
+    val resetter = SessionResetter(
+        listOf(
+            cart,
+            object : Resettable {
+                override fun reset() { appScope.launch { payments.reset() } } // 다른 계정의 진행 중 주문을 이어받지 않도록
+            },
+        ),
+    )
 
     val auth = AuthRepository(authApi, sessions, store, resetter, appScope)
 

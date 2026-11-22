@@ -23,6 +23,11 @@ import com.ormo.customer.ui.auth.SplashScreen
 import com.ormo.customer.ui.catalog.ComponentCatalog
 import com.ormo.customer.ui.home.HomePlaceholder
 import com.ormo.customer.ui.menu.MenuHomeScreen
+import com.ormo.customer.ui.order.CheckoutScreen
+import com.ormo.customer.ui.order.CheckoutViewModel
+import com.ormo.customer.ui.order.OptionScreen
+import com.ormo.customer.ui.order.OptionViewModel
+import com.ormo.customer.ui.order.OrderCompleteScreen
 import com.ormo.customer.ui.menu.MenuHomeViewModel
 import com.ormo.customer.ui.menu.MenuSearchScreen
 import com.ormo.customer.ui.menu.MenuSearchViewModel
@@ -55,13 +60,18 @@ private object Routes {
     const val MENU = "menu/{id}"
     const val SEARCH = "search/{id}"
     const val MYINFO = "myinfo"
+    const val OPTION = "option/{storeId}/{menuId}"
+    const val CHECKOUT = "checkout"
+    const val COMPLETE = "order_complete/{orderId}"
+    fun option(storeId: String, menuId: String) = "option/$storeId/$menuId"
+    fun complete(orderId: String) = "order_complete/$orderId"
     fun stores(hideBack: Boolean) = "stores/$hideBack"
     fun storeInfo(id: String) = "store_info/$id"
     fun menu(id: String) = "menu/$id"
     fun search(id: String) = "search/$id"
 
     /** 로그인한 사람만 보는 화면들 (세션이 끝나면 로그인으로 보낸다) */
-    val authed = setOf(ENTRY, STORES, STORE_INFO, MENU, SEARCH, MYINFO)
+    val authed = setOf(ENTRY, STORES, STORE_INFO, MENU, SEARCH, MYINFO, OPTION, CHECKOUT, COMPLETE)
     const val EXPIRED = "session_expired"
     const val OFFLINE = "offline"
     const val CATALOG = "catalog"
@@ -85,9 +95,13 @@ fun AppNav(container: AppContainer) {
 
     // 메뉴 데이터는 학교 단위: 로그인하면 그 학교의 메뉴(캐시 → 서버 버전 체크)를 불러오고, 로그아웃하면 비운다
     val schoolId by auth.schoolId.collectAsState()
+    val pendingToast by container.toasts.pending.collectAsState()
     LaunchedEffect(status, schoolId) {
         container.menus.setSchool(if (status == AuthStatus.SIGNED_IN) schoolId else null)
     }
+
+    // 앱을 껐다 켰을 때 결제 확인 중이던 주문이 있으면 서버에 물어 이어간다 (3.2.2)
+    LaunchedEffect(status) { if (status == AuthStatus.SIGNED_IN) container.payments.resume() }
 
     var restoreTick by remember { mutableStateOf(0) }
     LaunchedEffect(restoreTick) { auth.restore() }
@@ -209,10 +223,12 @@ fun AppNav(container: AppContainer) {
             MenuHomeScreen(
                 vm = vm,
                 onStoreSelect = { nav.navigate(Routes.stores(false)) },
-                onStoreInfo = { nav.navigate(Routes.storeInfo(id)) },
                 onSearch = { nav.navigate(Routes.search(id)) },
                 onMyInfo = { nav.navigate(Routes.MYINFO) },
-                onCart = { /* TODO(M4): 장바구니·주문서 화면 */ },
+                onCart = { nav.navigate(Routes.CHECKOUT) },
+                onOption = { menuId -> nav.navigate(Routes.option(id, menuId)) },
+                pendingToast = pendingToast,
+                onToastShown = container.toasts::consume,
             )
         }
         composable(Routes.SEARCH, arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
@@ -226,6 +242,39 @@ fun AppNav(container: AppContainer) {
                 vm = vm,
                 availability = { store?.let { StoreRules.availability(it.status, LocalDateTime.now()) } ?: OrderAvailability.Available },
                 onBack = { nav.popBackStack() },
+                onOption = { menuId -> nav.navigate(Routes.option(id, menuId)) },
+            )
+        }
+        composable(Routes.OPTION, arguments = listOf(navArgument("storeId") { type = NavType.StringType }, navArgument("menuId") { type = NavType.StringType })) { entry ->
+            val storeId = entry.arguments?.getString("storeId").orEmpty()
+            val menuId = entry.arguments?.getString("menuId").orEmpty()
+            val vm: OptionViewModel = viewModel(key = "option-$storeId-$menuId", factory = OptionViewModel.factory(container, storeId, menuId))
+            OptionScreen(
+                vm = vm,
+                onBack = { nav.popBackStack() },
+                onSearch = { nav.navigate(Routes.search(storeId)) },
+                onMyInfo = { nav.navigate(Routes.MYINFO) },
+                onAdded = { goCheckout ->
+                    if (goCheckout) nav.navigate(Routes.CHECKOUT) { popUpTo(Routes.OPTION) { inclusive = true } } else nav.popBackStack()
+                },
+            )
+        }
+        composable(Routes.CHECKOUT) {
+            val vm: CheckoutViewModel = viewModel(factory = CheckoutViewModel.factory(container))
+            CheckoutScreen(
+                vm = vm,
+                onBack = { nav.popBackStack() },
+                onViewMenu = {
+                    // 메뉴 홈으로: 이미 스택에 있으면 거기로, 없으면(앱을 다시 켠 뒤 등) 마지막 매장 메뉴를 새로 연다
+                    if (!nav.popBackStack(Routes.MENU, inclusive = false)) nav.navigate(Routes.stores(false)) { popUpTo(Routes.CHECKOUT) { inclusive = true } }
+                },
+                onPaid = { orderId -> nav.navigate(Routes.complete(orderId)) { popUpTo(Routes.CHECKOUT) { inclusive = true } } },
+            )
+        }
+        composable(Routes.COMPLETE, arguments = listOf(navArgument("orderId") { type = NavType.StringType })) { entry ->
+            OrderCompleteScreen(
+                orderId = entry.arguments?.getString("orderId").orEmpty(),
+                onMore = { if (!nav.popBackStack(Routes.MENU, inclusive = false)) nav.navigate(Routes.stores(false)) { popUpTo(Routes.COMPLETE) { inclusive = true } } },
             )
         }
         composable(Routes.MYINFO) {

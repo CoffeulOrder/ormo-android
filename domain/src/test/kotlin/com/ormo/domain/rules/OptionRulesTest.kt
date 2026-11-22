@@ -87,7 +87,7 @@ class OptionRulesTest {
     }
 
     @Test fun `옵션 요약은 그룹 순서의 이름`() {
-        assertEquals("ICE · 샷 추가", OptionRules.optionSummary(americano, listOf("shot", "ice")))
+        assertEquals("ICE | 샷 추가", OptionRules.optionSummary(americano, listOf("shot", "ice")))
         assertEquals("", OptionRules.optionSummary(americano, emptyList()))
     }
 

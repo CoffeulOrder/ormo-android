@@ -88,7 +88,7 @@ fun LoginScreen(
     val domains = ui.domains
 
     FormScreen(
-        title = "학교 이메일로 로그인해주세요",
+        title = "학교 이메일로 \n로그인해주세요",
         onBack = null,
         snackbar = snackbar,
         scrollToEndKey = form.message,
@@ -101,6 +101,12 @@ fun LoginScreen(
                 enabled = canSubmit || form.submitting,
                 loading = form.submitting,
             )
+            // 하단 보조 행동 (Ghost 텍스트): '비밀번호 찾기 | 회원가입'. 잠겼으면 [비밀번호 재설정하기] (0.1.2)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                OrmoButton(if (lockLabel != null) "비밀번호 재설정하기" else "비밀번호 찾기", onForgotPassword, kind = ButtonKind.Ghost)
+                Text("|", style = OrmoType.bodyMdMedium, color = Ormo.colors.textTertiary)
+                OrmoButton("회원가입", onSignup, kind = ButtonKind.Ghost)
+            }
         },
     ) {
         if (ui.domainsFailed) {
@@ -112,8 +118,7 @@ fun LoginScreen(
             OrmoField(
                 value = form.emailId,
                 onValueChange = vm::onEmailChanged,
-                label = "학교 이메일",
-                placeholder = "아이디",
+                label = "이메일",
                 suffix = form.domain?.let { "@$it" },
                 trailing = if (domains?.showsPicker == true) {
                     { Icon(OrmoIcons.ChevronDown, contentDescription = "학교 메일 선택", tint = Ormo.colors.iconSecondary, modifier = Modifier.size(Size.iconLg)) }
@@ -132,14 +137,6 @@ fun LoginScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { vm.submit() }),
             )
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                if (lockLabel != null) {
-                    OrmoButton("비밀번호 재설정하기", onForgotPassword, kind = ButtonKind.WeakBrand, size = ButtonSize.M)
-                } else {
-                    OrmoButton("비밀번호 찾기", onForgotPassword, kind = ButtonKind.Ghost)
-                }
-                OrmoButton("회원가입", onSignup, kind = ButtonKind.Ghost)
-            }
         }
     }
 

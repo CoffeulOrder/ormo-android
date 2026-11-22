@@ -29,17 +29,21 @@ data class Store(
     val waitingCount: Int? = null,
     val latitude: Double? = null,
     val longitude: Double? = null,
-)
+    /** 매장 주소 (매장 선택 카드, Figma 1.1.1) */
+    val address: String? = null,
+    /** 학교 이름 — 매장 선택 카드 제목은 '을지대학교 범석관 카페' 처럼 학교 이름이 앞에 붙는다 */
+    val schoolName: String? = null,
+) {
+    /** 목록·시트에 보이는 이름: "을지대학교 범석관 카페" */
+    val displayName: String get() = listOfNotNull(schoolName, name).joinToString(" ")
+}
 
 data class DayHours(val day: DayOfWeek, val open: LocalTime?, val close: LocalTime?) {
     /** 휴무: 시각이 하나라도 없으면 쉬는 날로 본다 */
     val closed: Boolean get() = open == null || close == null
 }
 
-/**
- * 판매자 정보 (1.2.1). 디자인 명세는 "6줄"이라고만 적고 항목은 Figma 에 있다 → 아래 6개는 전자상거래법 표시 항목 기준 가정.
- * TODO(spec 1.2.1): Figma 에서 실제 6줄 항목·순서 확인.
- */
+/** 판매자 정보 6줄 (Figma 1.2.1 확인: 상호, 대표자, 사업자등록번호, 주소, 연락처, 통신판매업 신고번호 — 이 순서) */
 data class SellerInfo(
     val businessName: String?,
     val representative: String?,

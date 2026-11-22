@@ -15,8 +15,10 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -52,32 +54,39 @@ fun OrmoCheckbox(
     onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     label: String? = null,
+    gap: androidx.compose.ui.unit.Dp = Space.s8,
 ) {
     val c = Ormo.colors
     Row(
         modifier = modifier
             .toggleable(value = checked, role = Role.Checkbox, onValueChange = onCheckedChange),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Space.s8),
+        horizontalArrangement = Arrangement.spacedBy(gap),
     ) {
-        CheckCircle(checked)
+        OrmoCheckCircle(checked)
         if (label != null) Text(label, style = OrmoType.bodyMdRegular, color = c.textPrimary)
     }
 }
 
 @Composable
-private fun CheckCircle(checked: Boolean) {
+fun OrmoCheckCircle(checked: Boolean, size: androidx.compose.ui.unit.Dp = 20.dp) {
     val c = Ormo.colors
     val bg by animateColorAsState(if (checked) c.fillBrand else Color.Transparent, tween(120), label = "check-bg")
     Box(
         Modifier
-            .size(20.dp)
+            .size(size)
             .clip(CircleShape)
             .background(bg)
             .border(Size.borderThick, if (checked) c.fillBrand else Base.GreyOpacity300, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
-        if (checked) Icon(OrmoIcons.Check, contentDescription = null, tint = c.textOnFill, modifier = Modifier.size(Size.iconSm))
+        val markSize = if (size >= 24.dp) Size.iconMd else Size.iconSm
+        if (checked) {
+            Icon(OrmoIcons.Check, contentDescription = null, tint = c.textOnFill, modifier = Modifier.size(markSize))
+        } else {
+            // Figma 옵션 목록·약관 시트: 꺼진 원 안에도 옅은 체크 표시가 보인다
+            Icon(OrmoIcons.Check, contentDescription = null, tint = Base.GreyOpacity300, modifier = Modifier.size(markSize))
+        }
     }
 }
 
@@ -106,12 +115,12 @@ fun TermsRow(
                 .weight(1f)
                 .toggleable(value = checked, role = Role.Checkbox, onValueChange = onCheckedChange),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Space.s8),
+            horizontalArrangement = Arrangement.spacedBy(Space.s12),
         ) {
-            CheckCircle(checked)
+            OrmoCheckCircle(checked, size = 24.dp)
             Text(
                 label,
-                style = if (strong) OrmoType.bodyLgSemibold else OrmoType.bodyMdRegular,
+                style = OrmoType.bodyMdRegular,
                 color = c.textPrimary,
             )
         }
@@ -177,7 +186,7 @@ fun OrmoSwitch(
 
 // ───────────── 구분선 (디자인 4.7) ─────────────
 
-/** Hairline 1px(Border/Default), Hairline Inset(좌우 page-margin), Thick 8px(섹션 구분, Background/Lower) */
+/** Hairline 1px(Border/Default), Hairline Inset(좌우 page-margin), Thick(섹션 구분, Background/Lower — Figma Divider 컴포넌트 값 12) */
 @Composable
 fun OrmoDivider(modifier: Modifier = Modifier, inset: Boolean = false) {
     Box(
@@ -191,7 +200,7 @@ fun OrmoDivider(modifier: Modifier = Modifier, inset: Boolean = false) {
 
 @Composable
 fun OrmoThickDivider(modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxWidth().height(8.dp).background(Ormo.colors.bgLower))
+    Box(modifier.fillMaxWidth().height(12.dp).background(Ormo.colors.bgLower))
 }
 
 /** 인라인 세로 구분선 */
@@ -207,7 +216,7 @@ fun OrmoVerticalDivider(modifier: Modifier = Modifier, height: androidx.compose.
  * 옵션 그룹은 Weak — 필수는 Critical Weak, 선택은 Brand Weak. 메뉴 상태는 Solid — 인기 Brand Solid, 신규 Positive Solid, 품절 Neutral Weak.
  * 한 메뉴에는 하나만 보여준다 (우선순위 품절 > 신규 > 인기: `MenuBadgeRules`).
  */
-enum class BadgeKind { Required, Optional, Popular, New, SoldOut }
+enum class BadgeKind { Required, Optional, Popular, New, SoldOut, Warning }
 
 @Composable
 fun OrmoBadge(text: String, kind: BadgeKind, modifier: Modifier = Modifier) {
@@ -218,6 +227,7 @@ fun OrmoBadge(text: String, kind: BadgeKind, modifier: Modifier = Modifier) {
         BadgeKind.Popular -> c.fillBrand to c.textOnFill
         BadgeKind.New -> c.fillSuccess to c.textOnFill
         BadgeKind.SoldOut -> c.fillNeutralWeak to c.textSecondary
+        BadgeKind.Warning -> c.fillWarningWeak to c.textWarning
     }
     Box(
         modifier
@@ -328,5 +338,85 @@ fun InfoRow(label: String, value: String, modifier: Modifier = Modifier, labelWi
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
         Text(label, style = OrmoType.bodyMdMedium, color = c.textTertiary, modifier = Modifier.width(labelWidth.dp))
         Text(value, style = OrmoType.bodyMdRegular, color = c.textPrimary, modifier = Modifier.weight(1f))
+    }
+}
+
+// ───────────── 수량 조절 (옵션 화면·장바구니) ─────────────
+
+/**
+ * 수량 −/+ (디자인 2.2: 수량 1~20, 1개일 때 −가, 20개일 때 +가 꺼짐). 버튼 40×40 탭 영역, 안쪽 아이콘 [Size.quantityIcon].
+ * 꺼진 + 를 눌러도 안내('한 번에 20개까지 주문할 수 있어요')를 띄울 수 있도록 [onPlusDisabledClick] 을 받는다.
+ */
+@Composable
+fun OrmoStepper(
+    quantity: Int,
+    onMinus: () -> Unit,
+    onPlus: () -> Unit,
+    modifier: Modifier = Modifier,
+    minusEnabled: Boolean = true,
+    plusEnabled: Boolean = true,
+    onPlusDisabledClick: (() -> Unit)? = null,
+    minusIsDelete: Boolean = false,
+    /** 작은 크기(장바구니 줄): 높이 40 · 버튼 36 · 아이콘 16. 기본은 M: 높이 48 · 버튼 40 · 아이콘 18 */
+    small: Boolean = false,
+) {
+    val c = Ormo.colors
+    val button = if (small) 36.dp else 40.dp
+    val icon = if (small) Size.iconSm else Size.quantityIcon
+    // Figma Quantity Picker: 알약(반경 12, 테두리 1), 버튼과 값 사이 1×16 구분선, 값 최소 36 · 좌우 8 · Body md/Medium
+    Row(
+        modifier
+            .height(if (small) 40.dp else 48.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(c.bgDefault)
+            .border(Size.borderThin, c.borderDefault, RoundedCornerShape(12.dp)),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .size(button)
+                .clickable(enabled = minusEnabled, role = Role.Button, onClickLabel = if (minusIsDelete) "삭제" else "수량 줄이기", onClick = onMinus),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                if (minusIsDelete) OrmoIcons.Trash else OrmoIcons.Minus,
+                contentDescription = null,
+                tint = if (minusEnabled) c.iconPrimary else c.iconQuaternary,
+                modifier = Modifier.size(Size.quantityIcon),
+            )
+        }
+        Box(Modifier.width(1.dp).height(16.dp).background(Base.GreyOpacity100))
+        Text(
+            quantity.toString(),
+            style = OrmoType.bodyMdMedium,
+            color = c.textStrong,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.widthIn(min = 36.dp).padding(horizontal = Space.s8).semantics { contentDescription = "수량 ${quantity}개" },
+        )
+        Box(Modifier.width(1.dp).height(16.dp).background(Base.GreyOpacity100))
+        Box(
+            Modifier
+                .size(button)
+                .clickable(role = Role.Button, onClickLabel = "수량 늘리기") { if (plusEnabled) onPlus() else onPlusDisabledClick?.invoke() },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(OrmoIcons.Plus, contentDescription = null, tint = if (plusEnabled) c.iconPrimary else c.iconQuaternary, modifier = Modifier.size(icon))
+        }
+    }
+}
+
+/** Radio (Figma 388:5699, L 24): 꺼짐 = 흰 바탕 + 2dp Grey Opacity 300 테두리, 켜짐 = Brand 원 + 흰 점 */
+@Composable
+fun OrmoRadio(selected: Boolean, modifier: Modifier = Modifier, size: androidx.compose.ui.unit.Dp = 24.dp) {
+    val c = Ormo.colors
+    Box(
+        modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(if (selected) c.fillBrand else c.bgDefault)
+            .then(if (selected) Modifier else Modifier.border(Size.borderThick, Base.GreyOpacity300, CircleShape)),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (selected) Box(Modifier.size(size / 3).clip(CircleShape).background(c.textOnFill))
     }
 }

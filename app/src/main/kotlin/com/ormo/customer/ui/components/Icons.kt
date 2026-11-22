@@ -32,9 +32,8 @@ object OrmoIcons {
         moveTo(5f, 12.5f); lineTo(10f, 17.5f); lineTo(19f, 7f)
     }
 
-    val ChevronDown: ImageVector = icon("chevron-down") {
-        moveTo(6f, 9f); lineTo(12f, 15f); lineTo(18f, 9f)
-    }
+    /** Figma Icon/chevron-down */
+    val ChevronDown: ImageVector get() = FigmaIcons.ChevronDown
 
     val ChevronRight: ImageVector = icon("chevron-right") {
         moveTo(9f, 6f); lineTo(15f, 12f); lineTo(9f, 18f)
@@ -87,25 +86,29 @@ object OrmoIcons {
         close()
     }
 
-    /** 검색 (돋보기) */
-    val Search: ImageVector = icon("search") {
-        moveTo(18.5f, 11f)
-        arcTo(7.5f, 7.5f, 0f, true, true, 3.5f, 11f)
-        arcTo(7.5f, 7.5f, 0f, true, true, 18.5f, 11f)
-        close()
-        moveTo(16.5f, 16.5f); lineTo(21f, 21f)
+    val Plus: ImageVector = icon("plus") {
+        moveTo(12f, 5f); lineTo(12f, 19f)
+        moveTo(5f, 12f); lineTo(19f, 12f)
     }
 
-    /** 내 정보 (사람) */
-    val Person: ImageVector = icon("person") {
-        moveTo(16.5f, 8f)
-        arcTo(4.5f, 4.5f, 0f, true, true, 7.5f, 8f)
-        arcTo(4.5f, 4.5f, 0f, true, true, 16.5f, 8f)
-        close()
-        moveTo(4.5f, 20f)
-        curveTo(4.5f, 16.5f, 7.5f, 14.5f, 12f, 14.5f)
-        curveTo(16.5f, 14.5f, 19.5f, 16.5f, 19.5f, 20f)
+    val Minus: ImageVector = icon("minus") {
+        moveTo(5f, 12f); lineTo(19f, 12f)
     }
+
+    /** 삭제 (휴지통) */
+    val Trash: ImageVector = icon("trash") {
+        moveTo(4f, 7f); lineTo(20f, 7f)
+        moveTo(9f, 7f); lineTo(9f, 4.5f); lineTo(15f, 4.5f); lineTo(15f, 7f)
+        moveTo(6.5f, 7f); lineTo(7.5f, 19.5f); lineTo(16.5f, 19.5f); lineTo(17.5f, 7f)
+    }
+
+    /** 검색 (돋보기) */
+    /** Figma Icon/search */
+    val Search: ImageVector get() = FigmaIcons.Search
+
+    /** 내 정보 (사람) */
+    /** Figma Icon/user */
+    val Person: ImageVector get() = FigmaIcons.User
 
     /** 매장 정보 (i) */
     val Info: ImageVector = icon("info") {
@@ -131,11 +134,14 @@ object OrmoIcons {
     }
 
     /** 비밀번호 표시 */
-    val Eye: ImageVector = icon("eye") { eyeOutline() }
+    /** Figma Icon/eye (비밀번호가 가려진 상태에서 보여주는 아이콘) */
+    val Eye: ImageVector get() = FigmaIcons.Eye
 
-    /** 비밀번호 숨김 (사선 추가) */
-    val EyeOff: ImageVector = icon("eye-off") {
-        eyeOutline()
-        moveTo(4.5f, 4.5f); lineTo(19.5f, 19.5f)
-    }
+    /** 비밀번호가 보이는 상태 */
+    val EyeOff: ImageVector get() = FigmaIcons.EyeOff
 }
+
+/** Figma 에서 내려받은 그 밖의 아이콘 */
+val OrmoIcons.MapPin: ImageVector get() = FigmaIcons.MapPin
+val OrmoIcons.Shoes: ImageVector get() = FigmaIcons.Shoes
+val OrmoIcons.ImagePlaceholder: ImageVector get() = FigmaIcons.ImagePlaceholder

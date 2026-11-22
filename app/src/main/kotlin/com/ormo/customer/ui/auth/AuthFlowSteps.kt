@@ -2,6 +2,7 @@ package com.ormo.customer.ui.auth
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,7 +13,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -21,6 +24,7 @@ import com.ormo.customer.ui.components.ButtonSize
 import com.ormo.customer.ui.components.FormScreen
 import com.ormo.customer.ui.components.OrmoButton
 import com.ormo.customer.ui.components.OrmoCodeInput
+import com.ormo.customer.ui.components.OrmoField
 import com.ormo.customer.ui.components.OrmoPasswordField
 import com.ormo.customer.ui.components.OrmoSnackbarState
 import com.ormo.customer.ui.components.PasswordRuleRow
@@ -76,47 +80,50 @@ fun CodeStep(
     val showResendButton = v != null && (v.phase == VerificationPhase.LOCKED || v.isExpired(now))
 
     FormScreen(
-        title = "메일로 받은 인증코드 6자리를 입력해주세요",
+        title = "메일로 받은\n인증코드 6자리를 입력해주세요",
         onBack = onBack,
         snackbar = snackbar,
         bottom = if (showResendButton) {
             { OrmoButton("인증코드 다시 받기", onResend, Modifier.fillMaxWidth(), size = ButtonSize.XL, loading = sending) }
+        } else if (v != null) {
+            {
+                // Figma 0.2.2: 키보드 위 가운데에 밑줄 글씨 '0:59 후 다시 받을 수 있어요' → 0:00 에 '메일이 오지 않나요?'
+                val resendSec = v.resendRemainingSeconds(now)
+                Box(Modifier.fillMaxWidth().padding(bottom = Space.s8), contentAlignment = Alignment.Center) {
+                    if (resendSec > 0) {
+                        Text("${formatCountdown(resendSec)} 후에 다시 받을 수 있어요", style = OrmoType.bodyMdRegular, color = c.textSecondary, textDecoration = TextDecoration.Underline)
+                    } else {
+                        Text(
+                            "메일이 오지 않나요?",
+                            style = OrmoType.bodyMdSemibold,
+                            color = c.textBrand,
+                            textDecoration = TextDecoration.Underline,
+                            modifier = Modifier.clickable(role = Role.Button, onClick = onResend).padding(vertical = Space.s4),
+                        )
+                    }
+                }
+            }
         } else {
             null
         },
     ) {
-        Text(email, style = OrmoType.bodyMdRegular, color = c.textSecondary)
+        // 제목 아래 남은 시간 (이메일 주소 줄은 Figma 에 없음)
+        if (v != null && !v.isExpired(now) && v.phase != VerificationPhase.LOCKED) {
+            Text("남은 시간 ${formatCountdown(v.remainingSeconds(now))}", style = OrmoType.bodyMdRegular, color = c.textSecondary)
+        } else {
+            Text(email, style = OrmoType.bodyMdRegular, color = c.textSecondary)
+        }
         OrmoCodeInput(
             value = v?.code.orEmpty(),
             onValueChange = onCodeChanged,
             enabled = enabled,
             invalid = message == VerificationMessage.MISMATCH || message == VerificationMessage.EXPIRED,
         )
-        if (v != null) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                when (message) {
-                    VerificationMessage.MISMATCH -> Text("인증코드가 일치하지 않아요", style = OrmoType.bodySmMedium, color = c.textDanger)
-                    VerificationMessage.TOO_MANY_WRONG -> Text("코드를 5번 잘못 입력해 사용이 제한됐어요", style = OrmoType.bodySmMedium, color = c.textDanger)
-                    VerificationMessage.EXPIRED -> Text("입력 시간이 만료됐어요", style = OrmoType.bodySmMedium, color = c.textDanger)
-                    null -> Text("", style = OrmoType.bodySmMedium)
-                }
-                if (!v.isExpired(now) && v.phase != VerificationPhase.LOCKED) {
-                    Text(formatCountdown(v.remainingSeconds(now)), style = OrmoType.bodySmSemibold, color = c.textBrand)
-                }
-            }
-            val resendSec = v.resendRemainingSeconds(now)
-            if (!showResendButton) {
-                if (resendSec > 0) {
-                    Text("${formatCountdown(resendSec)} 후에 다시 받을 수 있어요", style = OrmoType.bodySmRegular, color = c.textTertiary)
-                } else {
-                    Text(
-                        "메일이 오지 않나요?",
-                        style = OrmoType.bodySmSemibold,
-                        color = c.textBrand,
-                        modifier = Modifier.clickable(role = Role.Button, onClick = onResend).padding(vertical = Space.s4),
-                    )
-                }
-            }
+        when (message) {
+            VerificationMessage.MISMATCH -> Text("인증코드가 일치하지 않아요", style = OrmoType.bodySmMedium, color = c.textDanger)
+            VerificationMessage.TOO_MANY_WRONG -> Text("코드를 5번 잘못 입력해 사용이 제한됐어요", style = OrmoType.bodySmMedium, color = c.textDanger)
+            VerificationMessage.EXPIRED -> Text("입력 시간이 만료됐어요", style = OrmoType.bodySmMedium, color = c.textDanger)
+            null -> Unit
         }
     }
 }
@@ -137,6 +144,8 @@ fun NewPasswordStep(
     onSubmit: () -> Unit,
     onBack: () -> Unit,
     stageTitleFirst: String = "비밀번호를 입력해주세요",
+    /** 가입: 앞에서 입력한 이름이 비밀번호 칸 아래에 쌓여 보인다 (Figma 0.2.4) */
+    name: String? = null,
 ) {
     val check = form.check
     val confirmStage = form.stage == PasswordStage.CONFIRM
@@ -181,9 +190,12 @@ fun NewPasswordStep(
             keyboardActions = KeyboardActions(onDone = { if (form.canAdvance) onAdvance() }),
             autoFocus = !confirmStage,
         )
-        Column(verticalArrangement = Arrangement.spacedBy(Space.s12)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.s12)) { // Figma: 규칙 두 개를 한 줄에
             PasswordRuleRow("8자 이상", check.longEnough)
             PasswordRuleRow("영문과 숫자 포함", check.hasLetterAndDigit)
+        }
+        if (!name.isNullOrEmpty()) {
+            OrmoField(value = name, onValueChange = {}, label = "이름", enabled = false, clearable = false)
         }
     }
 }

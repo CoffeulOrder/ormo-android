@@ -9,10 +9,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
@@ -24,6 +27,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusRequester
+import com.ormo.customer.ui.theme.Shapes
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -38,11 +44,9 @@ import com.ormo.customer.ui.components.ButtonKind
 import com.ormo.customer.ui.components.ButtonSize
 import com.ormo.customer.ui.components.OrmoButton
 import com.ormo.customer.ui.components.OrmoDivider
-import com.ormo.customer.ui.components.OrmoField
 import com.ormo.customer.ui.components.OrmoIcons
 import com.ormo.customer.ui.components.OrmoSnackbarHost
 import com.ormo.customer.ui.components.OrmoSnackbarState
-import com.ormo.customer.ui.components.OrmoTopNav
 import com.ormo.customer.ui.components.SnackbarDurations
 import com.ormo.customer.ui.theme.Ormo
 import com.ormo.customer.ui.theme.OrmoType
@@ -53,6 +57,7 @@ import com.ormo.data.search.RecentSearchRepository
 import com.ormo.domain.home.MenuHomeRules
 import com.ormo.domain.model.MenuItem
 import com.ormo.domain.order.OptionScreenState
+import com.ormo.domain.rules.OptionRules
 import com.ormo.domain.search.SearchRules
 import com.ormo.domain.search.SearchView
 import com.ormo.domain.store.OrderAvailability
@@ -107,9 +112,12 @@ class MenuSearchViewModel(
     /** 검색어를 눌렀을 때: 그 검색어로 바로 검색 */
     fun searchRecent(term: String) { _query.value = term }
 
-    /** 결과(또는 인기 메뉴)를 눌렀다. 임시: 옵션 화면(M4) 대신 기본 옵션으로 담는다 (메뉴 홈과 같음). */
+    /** 현재 검색어를 최근 검색어에 남긴다 (결과를 눌렀을 때) */
+    fun remember() { if (_query.value.isNotBlank()) remember(_query.value) }
+
+    /** 옵션이 없는 메뉴를 바로 담는다 (옵션이 있으면 화면이 옵션 선택으로 보낸다) */
     fun onMenuClicked(item: MenuItem, canAdd: Boolean): String {
-        if (_query.value.isNotBlank()) remember(_query.value)
+        remember()
         if (!canAdd) return "지금은 담을 수 없어요"
         val change = cart.add(storeId, item, OptionScreenState.start(item).choiceIds)
         return if (change.limit == null) "장바구니에 메뉴를 추가했어요" else "한 번에 20개까지 주문할 수 있어요"
@@ -124,7 +132,7 @@ class MenuSearchViewModel(
 }
 
 @Composable
-fun MenuSearchScreen(vm: MenuSearchViewModel, availability: () -> OrderAvailability, onBack: () -> Unit) {
+fun MenuSearchScreen(vm: MenuSearchViewModel, availability: () -> OrderAvailability, onBack: () -> Unit, onOption: (menuId: String) -> Unit) {
     val c = Ormo.colors
     val query by vm.query.collectAsState()
     val view by vm.view.collectAsState()
@@ -132,26 +140,25 @@ fun MenuSearchScreen(vm: MenuSearchViewModel, availability: () -> OrderAvailabil
 
     Box(Modifier.fillMaxSize().background(c.bgDefault)) {
         Column(Modifier.fillMaxSize().imePadding()) {
-            OrmoTopNav(onBack = onBack)
-            Column(Modifier.padding(horizontal = Space.s20)) {
-                OrmoField(
-                    value = query,
-                    onValueChange = vm::onQueryChanged,
-                    placeholder = "메뉴 이름으로 검색해보세요",
-                    autoFocus = true, // 아이콘을 누르면 키보드가 바로 올라온다
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = { }),
-                )
+            // 상단: 뒤로가기 + 검색 입력 (Figma 2.1.3). 입력칸은 Fill/Neutral Weak 바탕, 왼쪽 검색 아이콘, 오른쪽 지우기
+            Row(
+                Modifier.fillMaxWidth().statusBarsPadding().height(56.dp).padding(start = Space.s8, end = Space.s20),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(40.dp).clickable(role = Role.Button, onClickLabel = "뒤로가기", onClick = onBack), contentAlignment = Alignment.Center) {
+                    Icon(OrmoIcons.Back, contentDescription = "뒤로가기", tint = c.iconPrimary, modifier = Modifier.size(Size.iconLg))
+                }
+                SearchInput(query, vm::onQueryChanged, Modifier.weight(1f))
             }
             Box(Modifier.padding(top = Space.s8))
             val canAdd = availability() is OrderAvailability.Available
             when (val v = view) {
-                is SearchView.Start -> SearchStart(v, vm, canAdd, snackbar)
+                is SearchView.Start -> SearchStart(v, vm, canAdd, snackbar, onOption)
                 is SearchView.Results -> LazyColumn(Modifier.weight(1f)) {
                     item {
                         Text(v.countLabel, style = OrmoType.bodySmSemibold, color = c.textTertiary, modifier = Modifier.padding(horizontal = Space.pageMargin, vertical = Space.s8))
                     }
-                    items(v.hits, key = { it.item.id }) { hit ->
+                    itemsIndexed(v.hits, key = { _, h -> h.item.id }) { index, hit ->
                         val rowState = MenuHomeRules.rowState(hit.item, availability())
                         MenuRow(
                             item = hit.item,
@@ -159,14 +166,18 @@ fun MenuSearchScreen(vm: MenuSearchViewModel, availability: () -> OrderAvailabil
                             quantity = 0,
                             badge = if (!rowState.tappable) BadgeKind.SoldOut else null,
                             highlight = hit.range,
-                            onClick = { snackbar.show(vm.onMenuClicked(hit.item, rowState.canAdd), SnackbarDurations.ADDED) },
+                            onClick = {
+                                if (rowState.canAdd && !OptionRules.hasOptions(hit.item)) snackbar.show(vm.onMenuClicked(hit.item, true), SnackbarDurations.ADDED)
+                                else { vm.remember(); onOption(hit.item.id) }
+                            },
                         )
+                        if (index < v.hits.lastIndex) OrmoDivider()
                     }
                 }
                 is SearchView.NoResult -> Column(Modifier.weight(1f)) {
                     Text(v.title, style = OrmoType.bodyXlBold, color = c.textPrimary, modifier = Modifier.padding(start = Space.pageMargin, end = Space.pageMargin, top = Space.s24))
                     Text(v.hint, style = OrmoType.bodyMdRegular, color = c.textSecondary, modifier = Modifier.padding(horizontal = Space.pageMargin).padding(top = Space.s4))
-                    if (v.showsPopular) PopularList(v.popular, vm, canAdd, snackbar, title = "이 매장 인기 메뉴")
+                    if (v.showsPopular) PopularList(v.popular, vm, canAdd, snackbar, title = "이 매장 인기 메뉴", onOption = onOption)
                 }
             }
         }
@@ -175,14 +186,14 @@ fun MenuSearchScreen(vm: MenuSearchViewModel, availability: () -> OrderAvailabil
 }
 
 @Composable
-private fun SearchStart(v: SearchView.Start, vm: MenuSearchViewModel, canAdd: Boolean, snackbar: OrmoSnackbarState) {
+private fun SearchStart(v: SearchView.Start, vm: MenuSearchViewModel, canAdd: Boolean, snackbar: OrmoSnackbarState, onOption: (String) -> Unit) {
     val c = Ormo.colors
     LazyColumn(Modifier.fillMaxSize()) {
         // 기록이 없는 묶음은 숨긴다
         if (v.showsRecent) {
             item {
                 Row(Modifier.fillMaxWidth().padding(horizontal = Space.pageMargin, vertical = Space.s8), verticalAlignment = Alignment.CenterVertically) {
-                    Text("최근 검색어", style = OrmoType.bodyLgBold, color = c.textStrong, modifier = Modifier.weight(1f))
+                    Text("최근 검색", style = OrmoType.bodyLgSemibold, color = c.textPrimary, modifier = Modifier.weight(1f))
                     OrmoButton("전체 삭제", vm::clearRecent, kind = ButtonKind.Ghost, size = ButtonSize.S)
                 }
             }
@@ -200,13 +211,13 @@ private fun SearchStart(v: SearchView.Start, vm: MenuSearchViewModel, canAdd: Bo
             item { Box(Modifier.padding(top = Space.s16)) }
         }
         if (v.showsPopular) {
-            item { PopularList(v.popular, vm, canAdd, snackbar, title = "많이 찾는 메뉴") }
+            item { PopularList(v.popular, vm, canAdd, snackbar, title = "많이 찾는 메뉴", onOption = onOption) }
         }
     }
 }
 
 @Composable
-private fun PopularList(items: List<MenuItem>, vm: MenuSearchViewModel, canAdd: Boolean, snackbar: OrmoSnackbarState, title: String) {
+private fun PopularList(items: List<MenuItem>, vm: MenuSearchViewModel, canAdd: Boolean, snackbar: OrmoSnackbarState, title: String, onOption: (String) -> Unit) {
     val c = Ormo.colors
     Column(Modifier.padding(top = Space.s24)) {
         Text(title, style = OrmoType.bodyLgBold, color = c.textStrong, modifier = Modifier.padding(horizontal = Space.pageMargin).padding(bottom = Space.s8))
@@ -214,7 +225,10 @@ private fun PopularList(items: List<MenuItem>, vm: MenuSearchViewModel, canAdd: 
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .clickable(role = Role.Button) { snackbar.show(vm.onMenuClicked(item, canAdd && !item.soldOut), SnackbarDurations.ADDED) }
+                    .clickable(role = Role.Button) {
+                        if (canAdd && !item.soldOut && !OptionRules.hasOptions(item)) snackbar.show(vm.onMenuClicked(item, true), SnackbarDurations.ADDED)
+                        else if (!item.soldOut) onOption(item.id)
+                    }
                     .padding(horizontal = Space.pageMargin, vertical = Space.s12),
                 horizontalArrangement = Arrangement.spacedBy(Space.s12),
             ) {
@@ -224,4 +238,41 @@ private fun PopularList(items: List<MenuItem>, vm: MenuSearchViewModel, canAdd: 
         }
         OrmoDivider(inset = true)
     }
+}
+
+/** 검색 입력칸: 높이 48, 반경 16, Fill/Neutral Weak, 검색 아이콘 + 안내 '메뉴 이름으로 검색해보세요', 입력이 있으면 지우기 */
+@Composable
+private fun SearchInput(value: String, onChange: (String) -> Unit, modifier: Modifier = Modifier) {
+    val c = Ormo.colors
+    val requester = remember { androidx.compose.ui.focus.FocusRequester() }
+    LaunchedEffect(Unit) { requester.requestFocus() } // 아이콘을 누르면 키보드가 바로 올라온다
+    androidx.compose.foundation.text.BasicTextField(
+        value = value,
+        onValueChange = onChange,
+        singleLine = true,
+        textStyle = OrmoType.bodyMdRegular.copy(color = c.textPrimary),
+        cursorBrush = androidx.compose.ui.graphics.SolidColor(c.fillBrand),
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(onSearch = { }),
+        modifier = modifier.fillMaxWidth().focusRequester(requester),
+        decorationBox = { inner ->
+            Row(
+                Modifier.fillMaxWidth().height(Size.heightLg).clip(Shapes.control56).background(c.fillNeutralWeak).padding(horizontal = Space.s12),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Space.s8),
+            ) {
+                Icon(OrmoIcons.Search, contentDescription = null, tint = c.iconSecondary, modifier = Modifier.size(Size.iconLg))
+                Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                    if (value.isEmpty()) Text("메뉴 이름으로 검색해보세요", style = OrmoType.bodyMdRegular, color = c.textQuaternary)
+                    inner()
+                }
+                if (value.isNotEmpty()) {
+                    Icon(
+                        OrmoIcons.ClearCircle, contentDescription = "지우기", tint = c.iconTertiary,
+                        modifier = Modifier.size(Size.iconLg).clickable(role = Role.Button) { onChange("") },
+                    )
+                }
+            }
+        },
+    )
 }

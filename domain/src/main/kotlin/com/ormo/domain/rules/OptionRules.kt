@@ -60,11 +60,11 @@ object OptionRules {
     /** 한 개당 표시 가격 = 메뉴 가격 + 옵션 추가금 (표시용) */
     fun unitPrice(item: MenuItem, ids: Collection<String>): Int = item.price + optionsPrice(item, ids)
 
-    /** "ICE · 샷 추가" 처럼 고른 옵션 이름 (그룹 순서). 고른 게 없으면 빈 문자열. */
+    /** "ICE | 샷 추가" 처럼 고른 옵션 이름 (그룹 순서). 고른 게 없으면 빈 문자열. */
     fun optionSummary(item: MenuItem, ids: Collection<String>): String =
         item.optionGroups
             .flatMap { g -> g.choices.filter { it.id in ids }.map { it.name } }
-            .joinToString(" · ")
+            .joinToString(" | ")
 
     /** 아직 안 고른 필수 그룹 이름들 (비어 있으면 담을 수 있다) */
     fun missingRequired(item: MenuItem, ids: Collection<String>): List<String> =

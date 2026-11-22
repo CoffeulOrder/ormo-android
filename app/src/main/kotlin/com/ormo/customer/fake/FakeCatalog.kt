@@ -104,10 +104,10 @@ class FakeStoreDirectory(private val latencyMs: Long = 400) : StoreDirectory {
         delay(latencyMs)
         val now = LocalDateTime.now()
         return listOf(
-            Store("c1", "범석관 카페", StoreStatus.Open, menuCount = 12, waitingCount = 3),
-            Store("c2", "학생회관 카페", StoreStatus.Break(now.plusMinutes(30)), menuCount = 4),
-            Store("c3", "도서관 카페", StoreStatus.Closed(now.plusDays(1).withHour(8).withMinute(30).withSecond(0).withNano(0)), menuCount = 2),
-            Store("c4", "신관 카페", StoreStatus.Open, menuCount = 0),
+            Store("c1", "범석관 카페", StoreStatus.Open, menuCount = 12, waitingCount = 3, address = "경기도 성남시 수정구 상성대로 567번길 1층 일부호(양지동)", schoolName = "을지대학교"),
+            Store("c2", "학생회관 카페", StoreStatus.Break(now.plusMinutes(30)), menuCount = 4, address = "경기도 성남시 수정구 산성대로 553 학생회관 1층", schoolName = "을지대학교"),
+            Store("c3", "도서관 카페", StoreStatus.Closed(now.plusDays(1).withHour(8).withMinute(30).withSecond(0).withNano(0)), menuCount = 2, address = "경기도 성남시 수정구 산성대로 553 도서관 로비", schoolName = "을지대학교"),
+            Store("c4", "신관 카페", StoreStatus.Open, menuCount = 0, address = "경기도 성남시 수정구 산성대로 553 신관 1층", schoolName = "을지대학교"),
         )
     }
 
@@ -121,10 +121,10 @@ class FakeStoreDirectory(private val latencyMs: Long = 400) : StoreDirectory {
             name = name,
             location = "범석관 1층 로비",
             weeklyHours = weekday + saturday, // 일요일은 휴무
-            notice = if (storeId == "c1") "12시~13시 사이에는 주문이 몰려 조금 늦을 수 있어요" else null,
+            notice = if (storeId == "c1") "11월 20일(목)은 학교 행사로 14:00까지만 열어요" else null,
             seller = SellerInfo(
                 businessName = "ORMO 카페",
-                representative = "홍길동",
+                representative = "김오르",
                 businessRegistrationNumber = "123-45-67890",
                 mailOrderNumber = if (storeId == "c1") "2026-경기성남-0001" else null, // 없으면 '준비 중'
                 address = "경기도 성남시 수정구 산성대로 553",

@@ -132,8 +132,7 @@ private fun ResetEmailStep(ui: ResetUi, snackbar: OrmoSnackbarState, vm: ResetVi
             OrmoField(
                 value = s.emailId,
                 onValueChange = vm::onEmailChanged,
-                label = "학교 이메일",
-                placeholder = "아이디",
+                label = "이메일",
                 error = error,
                 suffix = s.domain?.let { "@$it" },
                 trailing = if (domains?.showsPicker == true) {
