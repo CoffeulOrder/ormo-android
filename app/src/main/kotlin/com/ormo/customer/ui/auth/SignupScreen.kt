@@ -113,6 +113,7 @@ fun SignupScreen(
                 onAdvance = vm::advancePassword,
                 onSubmit = vm::confirmPassword,
                 onBack = { vm.back() },
+                name = s.name,
             )
             if (s.step == SignupStep.CONSENT) ConsentSheet(ui, vm)
         }
@@ -165,8 +166,7 @@ private fun EmailStep(
             OrmoField(
                 value = s.emailId,
                 onValueChange = onEmailChanged,
-                label = "학교 이메일",
-                placeholder = "아이디",
+                label = "이메일",
                 helper = "학교 메일로 재학생인지 확인해요",
                 error = error,
                 suffix = s.domain?.let { "@$it" },
@@ -226,8 +226,6 @@ private fun NameStep(
             value = value,
             onValueChange = onChange,
             label = "이름",
-            placeholder = "이름",
-            helper = "1~20자",
             // TODO(spec 0.2.3): 허용 글자와 오류 문구는 개발과 확정 필요 — 지금은 이모지·기호를 막는 문구
             error = when (error) {
                 NameRules.Error.INVALID_CHARS -> "이름에는 글자와 숫자만 쓸 수 있어요"
@@ -263,6 +261,7 @@ private fun ConsentSheet(ui: SignupUi, vm: SignupViewModel) {
         },
     ) {
         TermsRow("전체 동의", ui.consent.allChecked, { vm.toggleAllConsent() }, strong = true)
+        com.ormo.customer.ui.components.OrmoDivider()
         TermsRow("[필수] 서비스 이용약관", ui.consent.isChecked(ConsentId.TERMS), { vm.toggleConsent(ConsentId.TERMS) }, onOpen = { legal = ConsentId.TERMS })
         TermsRow("[필수] 개인정보 수집·이용", ui.consent.isChecked(ConsentId.PRIVACY), { vm.toggleConsent(ConsentId.PRIVACY) }, onOpen = { legal = ConsentId.PRIVACY })
     }

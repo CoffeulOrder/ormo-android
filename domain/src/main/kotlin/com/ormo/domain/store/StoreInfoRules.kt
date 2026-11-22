@@ -22,7 +22,7 @@ object StoreInfoRules {
     const val DISCLOSURE = "ORMO는 통신판매중개자로 주문과 결제를 중개해요. 음료와 환불에 대한 책임은 판매자에게 있어요."
 
     const val MAIL_ORDER_PENDING = "준비 중"
-    const val CLOSED_DAY = "휴무"
+    const val CLOSED_DAY = "쉬어요"
 
     private val DAY_ORDER = listOf(
         DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY,
@@ -41,23 +41,38 @@ object StoreInfoRules {
 
     private fun clock(t: LocalTime) = String.format(java.util.Locale.US, "%02d:%02d", t.hour, t.minute)
 
-    /** 요일별 운영시간. 데이터에 없는 요일은 휴무로 본다. 같은 요일이 둘 이상이면 앞의 것. */
-    fun hoursLines(weekly: List<DayHours>): List<InfoLine> = DAY_ORDER.map { day ->
-        val h = weekly.firstOrNull { it.day == day }
-        InfoLine(
-            dayName(day),
-            if (h == null || h.closed) CLOSED_DAY else "${clock(h.open!!)} ~ ${clock(h.close!!)}",
-        )
+    /**
+     * 요일별 운영시간 (Figma 1.2.1·1.1.2): **같은 시간이 이어지는 요일은 묶어서** "월~금  08:30~18:00", "토  10:00~15:00",
+     * 쉬는 날은 "일·공휴일  쉬어요" (일요일이 쉬면 공휴일도 같이 안내). 데이터에 없는 요일은 쉬는 날로 본다.
+     */
+    fun hoursLines(weekly: List<DayHours>): List<InfoLine> {
+        val perDay = DAY_ORDER.map { day ->
+            val h = weekly.firstOrNull { it.day == day }
+            day to (if (h == null || h.closed) CLOSED_DAY else "${clock(h.open!!)}~${clock(h.close!!)}")
+        }
+        val out = ArrayList<InfoLine>()
+        var i = 0
+        while (i < perDay.size) {
+            var j = i
+            while (j + 1 < perDay.size && perDay[j + 1].second == perDay[i].second) j++
+            val first = dayName(perDay[i].first)
+            var label = if (j > i) "$first~${dayName(perDay[j].first)}" else first
+            // 일요일이 쉬면 공휴일도 같이 (월~금 평일 근무 + 일·공휴일 휴무 형태)
+            if (perDay[j].first == DayOfWeek.SUNDAY && perDay[i].second == CLOSED_DAY) label += "·공휴일"
+            out += InfoLine(label, perDay[i].second)
+            i = j + 1
+        }
+        return out
     }
 
-    /** 판매자 정보. 값이 없는 줄은 '-' 로, 통신판매업 신고번호만 '준비 중' (1.2.1). */
+    /** 판매자 정보 6줄 (Figma 순서). 값이 없는 줄은 '-' 로, 통신판매업 신고번호만 '준비 중' (1.2.1). */
     fun sellerLines(seller: SellerInfo): List<InfoLine> = listOf(
         InfoLine("상호", seller.businessName.orDash()),
         InfoLine("대표자", seller.representative.orDash()),
         InfoLine("사업자등록번호", seller.businessRegistrationNumber.orDash()),
-        InfoLine("통신판매업 신고번호", seller.mailOrderNumber?.trim()?.takeIf { it.isNotEmpty() } ?: MAIL_ORDER_PENDING),
         InfoLine("주소", seller.address.orDash()),
         InfoLine("연락처", seller.phone.orDash()),
+        InfoLine("통신판매업 신고번호", seller.mailOrderNumber?.trim()?.takeIf { it.isNotEmpty() } ?: MAIL_ORDER_PENDING),
     )
 
     fun view(info: StoreInfo): StoreInfoView = StoreInfoView(

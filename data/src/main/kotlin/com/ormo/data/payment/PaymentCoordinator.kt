@@ -211,6 +211,12 @@ class PaymentCoordinator(
     /** 확인이 계속 안 될 때 주문서로 나가기 (주문은 유지) */
     fun giveUpWaiting() { update { it.giveUpWaiting() } }
 
+    /** 로그아웃·탈퇴 때: 진행 중이던 결제 상태를 버린다 (다른 계정의 주문을 이어받지 않도록). 저장해 둔 진행 중 주문은 [pending] 쪽에서 지운다. */
+    suspend fun reset() {
+        update { PaymentState() }
+        pending.clear()
+    }
+
     fun dismissBlocked() { update { it.dismissBlocked() } }
 
     fun clearPrepareError() { update { it.clearPrepareError() } }

@@ -76,17 +76,25 @@ fun OrmoCodeInput(
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                     repeat(length) { i ->
                         val current = focused && enabled && i == value.length.coerceAtMost(length - 1)
+                        val filled = i < value.length
+                        // Figma 0.2.2: 입력된 칸 = 흰 바탕 + 옅은 테두리, 아직 빈 칸 = 옅은 회색 채움(테두리 없음), 지금 칸 = 파란 테두리
                         val border = when {
                             invalid -> c.fillDanger
                             current -> c.fillBrand
-                            else -> Base.GreyOpacity300
+                            filled -> Base.GreyOpacity300
+                            else -> Color.Transparent
+                        }
+                        val bg = when {
+                            !enabled -> c.fillNeutralWeak
+                            invalid || current || filled -> c.bgDefault
+                            else -> c.fillNeutralWeak
                         }
                         Box(
                             Modifier
                                 .weight(1f)
                                 .height(Size.heightXl)
                                 .clip(Shapes.control56)
-                                .background(if (enabled) c.bgDefault else c.fillNeutralWeak)
+                                .background(bg)
                                 .border(if (invalid || current) Size.borderThick else Size.borderThin, border, Shapes.control56),
                             contentAlignment = Alignment.Center,
                         ) {

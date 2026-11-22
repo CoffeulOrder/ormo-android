@@ -47,6 +47,8 @@ import com.ormo.customer.ui.components.ButtonKind
 import com.ormo.customer.ui.components.ButtonSize
 import com.ormo.customer.ui.components.DelayedSkeleton
 import com.ormo.customer.ui.components.OrmoButton
+import com.ormo.customer.ui.components.OrmoDivider
+import com.ormo.customer.ui.components.OrmoThickDivider
 import com.ormo.customer.ui.components.OrmoIcons
 import com.ormo.customer.ui.components.OrmoSnackbarHost
 import com.ormo.customer.ui.components.OrmoSnackbarState
@@ -66,6 +68,7 @@ import com.ormo.domain.home.MenuHomeRules
 import com.ormo.domain.model.MenuItem
 import com.ormo.domain.order.OptionScreenState
 import com.ormo.domain.rules.CartLimit
+import com.ormo.domain.rules.OptionRules
 import com.ormo.domain.rules.MenuBadgeRules
 import com.ormo.domain.store.OrderAvailability
 import com.ormo.domain.store.Store
@@ -126,10 +129,10 @@ class MenuHomeViewModel(
     fun retry() { viewModelScope.launch { menus.retry() } }
 
     /**
-     * 메뉴를 담는다. **임시**: 옵션 선택 전체 화면(2.2, M4)이 아직 없어 필수 옵션 기본값으로 1개 담는다.
-     * 같은 메뉴·옵션이면 수량이 합쳐지고, 줄 20개·수량 20개 한도는 [CartHolder] 가 지킨다.
+     * 옵션이 없는 메뉴를 바로 담는다 (시트 없이 담고 토스트, 2.2).
+     * 같은 메뉴면 수량이 합쳐지고, 줄 20개·수량 20개 한도는 [CartHolder] 가 지킨다.
      */
-    fun addDefault(item: MenuItem): String {
+    fun addDirect(item: MenuItem): String {
         val change = cartHolder.add(storeId, item, OptionScreenState.start(item).choiceIds)
         return when (change.limit) {
             null -> "장바구니에 메뉴를 추가했어요"
@@ -159,10 +162,12 @@ class MenuHomeViewModel(
 fun MenuHomeScreen(
     vm: MenuHomeViewModel,
     onStoreSelect: () -> Unit,
-    onStoreInfo: () -> Unit,
     onSearch: () -> Unit,
     onMyInfo: () -> Unit,
     onCart: () -> Unit,
+    onOption: (menuId: String) -> Unit,
+    pendingToast: String?,
+    onToastShown: (String) -> Unit,
 ) {
     val c = Ormo.colors
     val ui by vm.ui.collectAsState()
@@ -174,6 +179,13 @@ fun MenuHomeScreen(
     val nowLocal = remember(now / 15_000) { LocalDateTime.now() }
 
     LaunchedEffect(Unit) { vm.messages.collect { snackbar.show(it, SnackbarDurations.PARTIAL_FAILURE) } }
+    // 옵션 화면에서 담고 돌아오면 '장바구니에 메뉴를 추가했어요' 2초 (2.2.2)
+    LaunchedEffect(pendingToast) {
+        if (pendingToast != null) {
+            snackbar.show(pendingToast, SnackbarDurations.ADDED)
+            onToastShown(pendingToast)
+        }
+    }
 
     val cafe = menuState.payload?.cafes?.firstOrNull { it.id == vm.storeId }
     val storeName = ui.store?.name ?: cafe?.name ?: ""
@@ -181,7 +193,7 @@ fun MenuHomeScreen(
 
     Box(Modifier.fillMaxSize().background(c.bgDefault)) {
         Column(Modifier.fillMaxSize()) {
-            MenuHomeTopBar(storeName, onStoreSelect, onStoreInfo, onSearch, onMyInfo)
+            MenuHomeTopBar(storeName, onStoreSelect, onSearch, onMyInfo)
             when {
                 menuState.status == MenuStatus.ERROR -> ErrorBody(onRetry = vm::retry, onOtherStore = onStoreSelect)
                 menuState.status == MenuStatus.LOADING -> DelayedSkeleton(
@@ -212,16 +224,22 @@ fun MenuHomeScreen(
                         }
                         PullToRefreshBox(isRefreshing = ui.refreshing, onRefresh = vm::refresh, modifier = Modifier.weight(1f)) {
                             LazyColumn(Modifier.fillMaxSize(), state = listState) {
-                                layout.sections.forEach { section ->
+                                layout.sections.forEachIndexed { sectionIndex, section ->
+                                    // 묶음 사이는 굵은 구분선 + 라벨(18 bold). 맨 앞 '최근 주문' 묶음은 탭이 이미 이름을 보여줘 라벨이 없다 (Figma 2.1.1)
                                     item(key = "h-${section.key}") {
-                                        Text(
-                                            section.title,
-                                            style = OrmoType.bodyLgBold,
-                                            color = c.textStrong,
-                                            modifier = Modifier.fillMaxWidth().padding(horizontal = Space.pageMargin, vertical = Space.s12).semantics { heading() },
-                                        )
+                                        if (sectionIndex > 0 || !section.isRecent) {
+                                            if (sectionIndex > 0) OrmoThickDivider()
+                                            Text(
+                                                section.title,
+                                                style = OrmoType.bodyLgBold,
+                                                color = c.textPrimary,
+                                                modifier = Modifier.fillMaxWidth().padding(start = Space.s20, end = Space.s20, top = Space.s12).semantics { heading() },
+                                            )
+                                        } else {
+                                            Box(Modifier.height(1.dp))
+                                        }
                                     }
-                                    section.items.forEach { menu ->
+                                    section.items.forEachIndexed { menuIndex, menu ->
                                         item(key = "${section.key}-${menu.id}") {
                                             val rowState = MenuHomeRules.rowState(menu, availability)
                                             val badge = MenuBadgeRules.badge(
@@ -233,14 +251,15 @@ fun MenuHomeScreen(
                                                 quantity = badges[menu.id] ?: 0,
                                                 badge = if (badge == com.ormo.domain.rules.MenuBadge.SOLD_OUT) BadgeKind.SoldOut else null,
                                                 onClick = {
-                                                    if (rowState.canAdd) {
-                                                        snackbar.show(vm.addDefault(menu), SnackbarDurations.ADDED)
+                                                    // 옵션이 없는 메뉴는 시트 없이 바로 담고 토스트, 있으면 옵션 선택 화면 (2.2). 주문 불가여도 옵션 화면은 열리고 담기만 꺼진다.
+                                                    if (rowState.canAdd && !OptionRules.hasOptions(menu)) {
+                                                        snackbar.show(vm.addDirect(menu), SnackbarDurations.ADDED)
                                                     } else {
-                                                        // 주문 불가: 옵션 화면(M4)은 열리지만 담기만 꺼진다 — 지금은 안내만
-                                                        snackbar.show((availability as? OrderAvailability.Unavailable)?.message ?: "지금은 담을 수 없어요", SnackbarDurations.PARTIAL_FAILURE)
+                                                        onOption(menu.id)
                                                     }
                                                 },
                                             )
+                                            if (menuIndex < section.items.lastIndex) OrmoDivider()
                                         }
                                     }
                                 }
@@ -257,26 +276,30 @@ fun MenuHomeScreen(
     }
 }
 
+/** 상단 (Figma 2.1.1): [매장 이름 ▾](→ 매장 선택) 20/30 semibold + 오른쪽 검색·내 정보 (40×40, 아이콘 24). 패딩 좌우 20, 위아래 8 */
 @Composable
-private fun MenuHomeTopBar(storeName: String, onStoreSelect: () -> Unit, onStoreInfo: () -> Unit, onSearch: () -> Unit, onMyInfo: () -> Unit) {
+private fun MenuHomeTopBar(storeName: String, onStoreSelect: () -> Unit, onSearch: () -> Unit, onMyInfo: () -> Unit) {
     val c = Ormo.colors
     Row(
-        Modifier.fillMaxWidth().background(c.bgDefault).statusBarsPadding().height(56.dp).padding(start = Space.s20, end = Space.s8),
+        Modifier.fillMaxWidth().background(c.bgDefault).statusBarsPadding().padding(horizontal = Space.s20, vertical = Space.s8),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Row(Modifier.clickable(role = Role.Button, onClickLabel = "매장 변경", onClick = onStoreSelect).height(44.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(storeName, style = OrmoType.bodyXlBold, color = c.textStrong, maxLines = 1)
+        Row(
+            Modifier.clickable(role = Role.Button, onClickLabel = "매장 변경", onClick = onStoreSelect).height(40.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Space.s8),
+        ) {
+            Text(storeName, style = OrmoType.bodyXlSemibold, color = c.textPrimary, maxLines = 1)
             Icon(OrmoIcons.ChevronDown, contentDescription = null, tint = c.iconPrimary, modifier = Modifier.size(Size.iconLg))
         }
-        Box(Modifier.size(40.dp).clickable(role = Role.Button, onClickLabel = "매장 정보", onClick = onStoreInfo), contentAlignment = Alignment.Center) {
-            Icon(OrmoIcons.Info, contentDescription = null, tint = c.iconSecondary, modifier = Modifier.size(Size.iconMd))
-        }
-        Box(Modifier.weight(1f))
-        Box(Modifier.size(44.dp).clickable(role = Role.Button, onClickLabel = "메뉴 검색", onClick = onSearch), contentAlignment = Alignment.Center) {
-            Icon(OrmoIcons.Search, contentDescription = null, tint = c.iconPrimary, modifier = Modifier.size(Size.iconLg))
-        }
-        Box(Modifier.size(44.dp).clickable(role = Role.Button, onClickLabel = "내 정보", onClick = onMyInfo), contentAlignment = Alignment.Center) {
-            Icon(OrmoIcons.Person, contentDescription = null, tint = c.iconPrimary, modifier = Modifier.size(Size.iconLg))
+        Row {
+            Box(Modifier.size(40.dp).clickable(role = Role.Button, onClickLabel = "메뉴 검색", onClick = onSearch), contentAlignment = Alignment.Center) {
+                Icon(OrmoIcons.Search, contentDescription = null, tint = c.iconPrimary, modifier = Modifier.size(Size.iconLg))
+            }
+            Box(Modifier.size(40.dp).clickable(role = Role.Button, onClickLabel = "내 정보", onClick = onMyInfo), contentAlignment = Alignment.Center) {
+                Icon(OrmoIcons.Person, contentDescription = null, tint = c.iconPrimary, modifier = Modifier.size(Size.iconLg))
+            }
         }
     }
 }

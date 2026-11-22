@@ -2,14 +2,16 @@ package com.ormo.customer.ui.store
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -20,12 +22,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.ormo.core.Outcome
+import com.ormo.customer.ui.components.BadgeKind
 import com.ormo.customer.ui.components.ButtonKind
 import com.ormo.customer.ui.components.ButtonSize
 import com.ormo.customer.ui.components.DelayedSkeleton
-import com.ormo.customer.ui.components.InfoRow
+import com.ormo.customer.ui.components.OrmoBadge
 import com.ormo.customer.ui.components.OrmoButton
 import com.ormo.customer.ui.components.OrmoThickDivider
 import com.ormo.customer.ui.components.OrmoTopNav
@@ -35,12 +40,17 @@ import com.ormo.customer.ui.theme.OrmoType
 import com.ormo.customer.ui.theme.Space
 import com.ormo.data.store.StoreLoadFailure
 import com.ormo.data.store.StoreRepository
+import com.ormo.domain.store.InfoLine
+import com.ormo.domain.store.Store
 import com.ormo.domain.store.StoreInfo
 import com.ormo.domain.store.StoreInfoRules
+import com.ormo.domain.store.StoreRules
+import com.ormo.domain.store.StoreStatus
+import java.time.LocalDateTime
 
 /**
- * 매장 정보 / 판매자 정보 (디자인 1.2.1): 위치, 요일별 운영시간, 공지(없으면 묶음 숨김), 판매자 정보 6줄(신고번호 없으면 '준비 중'),
- * 하단 필수 고지 — 'ORMO는 통신판매중개자로 …' (전자상거래법상 필수라 항상 보여준다).
+ * 매장 정보 / 판매자 정보 (Figma 1.2.1): 이름 + 영업 상태 뱃지, 위치, 운영시간(같은 시간은 묶어서 오른쪽 정렬), 공지(없으면 묶음 숨김),
+ * 판매자 정보 6줄(신고번호 없으면 '준비 중'), 하단 필수 고지 상자 — 'ORMO는 통신판매중개자로 …' (전자상거래법상 필수라 항상 보여준다).
  * 주문 가능 여부는 운영시간이 아니라 매장의 영업 상태로 판단하므로, 여기 운영시간은 안내용이다.
  */
 @Composable
@@ -50,6 +60,7 @@ fun StoreInfoScreen(storeId: String, repo: StoreRepository, onBack: () -> Unit) 
         value = null
         value = repo.loadInfo(storeId)
     }
+    val store by produceState<Store?>(null, storeId) { value = (repo.loadStores() as? Outcome.Ok)?.value?.all?.firstOrNull { it.id == storeId } }
     val c = Ormo.colors
     Column(Modifier.fillMaxSize().background(c.bgDefault)) {
         OrmoTopNav(title = "매장 정보", onBack = onBack)
@@ -68,34 +79,39 @@ fun StoreInfoScreen(storeId: String, repo: StoreRepository, onBack: () -> Unit) 
                 loading = r == null,
                 skeleton = {
                     Column(Modifier.padding(Space.pageMargin), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
-                        SkeletonBlock(Modifier.fillMaxWidth().height2(28))
-                        SkeletonBlock(Modifier.fillMaxWidth().height2(160))
+                        SkeletonBlock(Modifier.fillMaxWidth().height(28.dp))
+                        SkeletonBlock(Modifier.fillMaxWidth().height(160.dp))
                     }
                 },
             ) {
-                val view = (r as? Outcome.Ok)?.value?.let { StoreInfoRules.view(it) }
-                val name = (r as? Outcome.Ok)?.value?.name.orEmpty()
-                if (view != null) {
+                val info = (r as? Outcome.Ok)?.value
+                if (info != null) {
+                    val view = StoreInfoRules.view(info)
                     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-                        Column(Modifier.padding(horizontal = Space.pageMargin, vertical = Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
-                            Text(name, style = OrmoType.displayXsSemibold, color = c.textPrimary)
-                            view.location?.let { Text(it, style = OrmoType.bodyMdRegular, color = c.textSecondary) }
+                        Row(Modifier.padding(horizontal = Space.s20, vertical = Space.s12), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+                            Text(store?.displayName ?: info.name, style = OrmoType.bodyXlBold, color = c.textStrong, modifier = Modifier.weight(1f, fill = false))
+                            store?.let { s ->
+                                val label = StoreRules.statusLabel(s.status, LocalDateTime.now())
+                                OrmoBadge(label.text, when (s.status) { is StoreStatus.Open -> BadgeKind.Optional; is StoreStatus.Break -> BadgeKind.Warning; else -> BadgeKind.SoldOut })
+                            }
                         }
-                        OrmoThickDivider()
-                        Section("운영시간") { view.hours.forEach { InfoRow(it.label, it.value, labelWidth = 32) } }
-                        if (view.notice != null) {
-                            OrmoThickDivider()
-                            Section("공지") { Text(view.notice!!, style = OrmoType.bodyMdRegular, color = c.textPrimary) }
-                        }
-                        OrmoThickDivider()
-                        Section("판매자 정보") { view.seller.forEach { InfoRow(it.label, it.value, labelWidth = 148) } }
+                        view.location?.let { Section("위치") { Text(it, style = OrmoType.bodyMdRegular, color = c.textSecondary) } }
+                        Section("운영시간") { view.hours.forEach { Line(it) } }
+                        if (view.notice != null) Section("공지") { Text(view.notice!!, style = OrmoType.bodyMdRegular, color = c.textPrimary) }
+                        OrmoThickDivider(Modifier.padding(top = Space.s8))
+                        Section("판매자 정보") { view.seller.forEach { Line(it) } }
                         Text(
                             view.disclosure,
-                            style = OrmoType.bodyXsMedium,
-                            color = c.textTertiary,
-                            modifier = Modifier.fillMaxWidth().background(c.bgLower).padding(Space.pageMargin),
+                            style = OrmoType.bodySmRegular,
+                            color = c.textSecondary,
+                            modifier = Modifier
+                                .padding(horizontal = Space.s20, vertical = Space.s8)
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(c.fillNeutralWeak)
+                                .padding(Space.s16),
                         )
-                        Box(Modifier.fillMaxWidth().background(c.bgLower).navigationBarsPadding())
+                        Box(Modifier.navigationBarsPadding().height(Space.s16))
                     }
                 }
             }
@@ -103,12 +119,20 @@ fun StoreInfoScreen(storeId: String, repo: StoreRepository, onBack: () -> Unit) 
     }
 }
 
-private fun Modifier.height2(dp: Int): Modifier = this.height(dp.dp)
-
 @Composable
 private fun Section(title: String, content: @Composable () -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = Space.pageMargin, vertical = Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-        Text(title, style = OrmoType.bodyLgBold, color = Ormo.colors.textStrong)
+    Column(Modifier.fillMaxWidth().padding(horizontal = Space.s20, vertical = Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+        Text(title, style = OrmoType.bodyLgSemibold, color = Ormo.colors.textStrong)
         content()
+    }
+}
+
+/** 라벨은 왼쪽(Text/Tertiary), 값은 오른쪽 정렬 (Figma 1.2.1) */
+@Composable
+private fun Line(line: InfoLine) {
+    val c = Ormo.colors
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.s16)) {
+        Text(line.label, style = OrmoType.bodyMdRegular, color = c.textTertiary)
+        Text(line.value, style = OrmoType.bodyMdRegular, color = c.textPrimary, textAlign = TextAlign.End, modifier = Modifier.weight(1f))
     }
 }
