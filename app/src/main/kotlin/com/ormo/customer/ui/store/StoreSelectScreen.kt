@@ -25,6 +25,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
@@ -161,11 +162,11 @@ fun StoreSelectScreen(
 
     Column(Modifier.fillMaxSize().background(c.bgDefault)) {
         OrmoTopNav(onBack = if (hideBack) null else onBack)
-        Column(Modifier.padding(horizontal = Space.s20, vertical = 10.dp)) {
-            Text("어느 카페에서 주문할까요?", style = OrmoType.displayXsSemibold, color = c.textPrimary)
+        Column(Modifier.padding(start = Space.s20, end = Space.s20, top = 20.dp, bottom = 10.dp)) { // Figma: 제목 글자 y=126, 학교 이름 아래 카드까지 26
+            Text("어느 카페에서 주문할까요?", style = OrmoType.displayXsSemibold, color = c.textPrimary, modifier = Modifier.semantics { heading() })
             ui.stores.firstOrNull()?.schoolName?.let { Text(it, style = OrmoType.bodyMdRegular, color = c.textSecondary, modifier = Modifier.padding(top = Space.s4)) }
         }
-        Box(Modifier.height(Space.s12))
+        Box(Modifier.height(16.dp))
         when {
             ui.failed -> Column(
                 Modifier.fillMaxSize().padding(horizontal = Space.pageMargin),
@@ -213,7 +214,7 @@ private fun StoreCard(store: Store, now: LocalDateTime, onClick: () -> Unit) {
     ) {
         Column(Modifier.weight(1f).alpha(if (dimmed) 0.5f else 1f), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             Row(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalAlignment = Alignment.CenterVertically) {
-                Text(store.displayName, style = OrmoType.bodyMdSemibold, color = c.textPrimary, maxLines = 1, modifier = Modifier.weight(1f, fill = false))
+                Text(store.displayName, style = OrmoType.bodyMdSemibold, color = c.textPrimary, modifier = Modifier.weight(1f, fill = false))
                 Text(
                     label.text,
                     style = OrmoType.bodySmMedium,
@@ -281,7 +282,7 @@ private fun StoreSheet(store: Store, vm: StoreSelectViewModel, conflict: StoreCh
                 when (store.status) { is StoreStatus.Open -> BadgeKind.Optional; is StoreStatus.Break -> BadgeKind.Warning; else -> BadgeKind.SoldOut },
             )
             Box(Modifier.weight(1f))
-            Box(Modifier.size(40.dp).clickable(role = Role.Button, onClickLabel = "매장 정보", onClick = onInfo), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(48.dp).clickable(role = Role.Button, onClickLabel = "매장 정보", onClick = onInfo), contentAlignment = Alignment.Center) {
                 Icon(OrmoIcons.Info, null, tint = c.iconTertiary, modifier = Modifier.size(Size.iconLg))
             }
         }

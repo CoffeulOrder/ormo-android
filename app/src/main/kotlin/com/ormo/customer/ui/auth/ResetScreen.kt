@@ -21,6 +21,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -96,7 +98,7 @@ fun ResetScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     OrmoLogo()
-                    Text("비밀번호를 변경했어요", style = OrmoType.displayXsSemibold, color = c.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = Space.s16))
+                    Text("비밀번호를 변경했어요", style = OrmoType.displayXsSemibold, color = c.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.semantics { heading() }.padding(top = Space.s16))
                     Text("새 비밀번호로 로그인해주세요", style = OrmoType.bodyMdRegular, color = c.textSecondary, textAlign = TextAlign.Center)
                 }
                 BottomCta { OrmoButton("로그인하기", { onLogin(vm.emailForLogin()) }, Modifier.fillMaxWidth(), size = ButtonSize.XL) }
@@ -118,6 +120,7 @@ private fun ResetEmailStep(ui: ResetUi, snackbar: OrmoSnackbarState, vm: ResetVi
     }
     val domains = ui.domains
     FormScreen(
+        firstStep = true,
         title = "가입한 학교 이메일을 입력해주세요",
         onBack = onClose,
         snackbar = snackbar,

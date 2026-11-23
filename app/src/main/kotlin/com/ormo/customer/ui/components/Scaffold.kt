@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -15,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.ormo.customer.ui.theme.ormoNavigationBarsPadding
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.Arrangement
@@ -37,6 +38,11 @@ fun FormScreen(
     snackbar: OrmoSnackbarState? = null,
     /** 이 값이 바뀌면 본문을 맨 아래까지 스크롤한다 (키보드가 올라와 좁을 때 방금 뜬 오류 문구가 가려지지 않게) */
     scrollToEndKey: Any? = null,
+    /** 흐름의 첫 화면(로그인·이메일·인증코드)은 Figma 에서 제목이 y=126, 쌓이는 화면(이름·비밀번호)은 y=118 에 놓인다 */
+    firstStep: Boolean = false,
+    bottomPadding: androidx.compose.ui.unit.Dp = Space.s32,
+    /** 제목 글자 아래 → 첫 요소까지 (Figma: 첫 화면 30, 쌓이는 화면 32, 인증코드 화면 20) */
+    titleGap: androidx.compose.ui.unit.Dp? = null,
     bottom: (@Composable ColumnScope.() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -53,22 +59,24 @@ fun FormScreen(
                     .weight(1f)
                     .verticalScroll(scroll)
                     .padding(horizontal = Space.s20),
-                verticalArrangement = Arrangement.spacedBy(Space.s24),
+                verticalArrangement = Arrangement.Top,
             ) {
                 if (title != null) {
                     Text(
                         title,
                         style = OrmoType.displayXsSemibold,
                         color = c.textPrimary,
-                        modifier = Modifier.padding(vertical = 10.dp).semantics { heading() },
+                        // Figma: 제목 글자 위 — 첫 화면(로그인·이메일·인증코드) 20, 쌓이는 화면 12
+                        modifier = Modifier.padding(top = if (firstStep) 20.dp else 12.dp).semantics { heading() },
                     )
+                    Box(Modifier.height(titleGap ?: if (firstStep) 30.dp else 32.dp))
                 }
-                content()
+                Column(verticalArrangement = Arrangement.spacedBy(Space.s24)) { content() }
             }
-            if (bottom != null) BottomCta(content = bottom) else Box(Modifier.navigationBarsPadding())
+            if (bottom != null) BottomCta(bottomPadding = bottomPadding, content = bottom) else Box(Modifier.ormoNavigationBarsPadding())
         }
         if (snackbar != null) {
-            OrmoSnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).imePadding().navigationBarsPadding(), bottomOffset = 140.dp)
+            OrmoSnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).imePadding().ormoNavigationBarsPadding(), bottomOffset = 140.dp)
         }
     }
 }

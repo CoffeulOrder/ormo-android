@@ -3,6 +3,7 @@ package com.ormo.customer.ui.auth
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,7 +23,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -146,6 +151,7 @@ private fun EmailStep(
     }
     val domains = ui.domains
     FormScreen(
+        firstStep = true,
         title = "학교 이메일을 입력해주세요",
         onBack = onBack,
         snackbar = snackbar,
@@ -196,12 +202,12 @@ internal fun DomainSheet(domains: List<String>, selected: String?, onSelect: (St
                 androidx.compose.foundation.layout.Row(
                     Modifier
                         .fillMaxWidth()
-                        .clickable(role = androidx.compose.ui.semantics.Role.RadioButton) { onSelect(d) }
+                        .selectable(selected = d == selected, role = androidx.compose.ui.semantics.Role.RadioButton) { onSelect(d) }
                         .padding(vertical = Space.s16),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text("@$d", style = OrmoType.bodyMdMedium, color = Ormo.colors.textPrimary, modifier = Modifier.weight(1f))
-                    if (d == selected) Icon(OrmoIcons.Check, contentDescription = "선택됨", tint = Ormo.colors.iconBrand, modifier = Modifier.size(Size.iconLg))
+                    if (d == selected) Icon(OrmoIcons.Check, contentDescription = null, tint = Ormo.colors.iconBrand, modifier = Modifier.size(Size.iconLg))
                 }
             }
         }
@@ -280,10 +286,15 @@ private fun ConsentSheet(ui: SignupUi, vm: SignupViewModel) {
 @Composable
 private fun DoneStep(name: String) {
     val c = Ormo.colors
-    Box(Modifier.fillMaxSize().background(c.bgDefault), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Space.s24), modifier = Modifier.padding(horizontal = Space.pageMargin)) {
-            OrmoLogo()
-            Text("${name}님, ORMO에 오신 걸 환영해요", style = OrmoType.displayXsSemibold, color = c.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-        }
+    // Figma 0.2.6: 심볼 100.54×128 이 (137,178), 글자 두 줄은 화면 세로 중앙보다 36 위에 가운데 정렬 (축하 색종이 모션은 아직 없음)
+    Box(Modifier.fillMaxSize().background(c.bgDefault)) {
+        OrmoMark(Modifier.align(Alignment.TopCenter).padding(top = 178.dp))
+        Text(
+            "${name}님, \nORMO에 오신 걸 환영해요",
+            style = OrmoType.displayXsSemibold,
+            color = c.textPrimary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.align(Alignment.Center).offset(y = (-36).dp).semantics { heading() },
+        )
     }
 }

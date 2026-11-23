@@ -16,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -80,6 +81,8 @@ fun CodeStep(
     val showResendButton = v != null && (v.phase == VerificationPhase.LOCKED || v.isExpired(now))
 
     FormScreen(
+        firstStep = true,
+        titleGap = 20.dp,
         title = "메일로 받은\n인증코드 6자리를 입력해주세요",
         onBack = onBack,
         snackbar = snackbar,
@@ -109,9 +112,9 @@ fun CodeStep(
     ) {
         // 제목 아래 남은 시간 (이메일 주소 줄은 Figma 에 없음)
         if (v != null && !v.isExpired(now) && v.phase != VerificationPhase.LOCKED) {
-            Text("남은 시간 ${formatCountdown(v.remainingSeconds(now))}", style = OrmoType.bodyMdRegular, color = c.textSecondary)
+            Text("남은 시간 ${formatCountdown(v.remainingSeconds(now))}", style = OrmoType.bodyMdRegular, color = c.textSecondary, modifier = Modifier.padding(bottom = 6.dp))
         } else {
-            Text(email, style = OrmoType.bodyMdRegular, color = c.textSecondary)
+            Text(email, style = OrmoType.bodyMdRegular, color = c.textSecondary, modifier = Modifier.padding(bottom = 6.dp))
         }
         OrmoCodeInput(
             value = v?.code.orEmpty(),
@@ -181,18 +184,21 @@ fun NewPasswordStep(
                 autoFocus = true,
             )
         }
-        OrmoPasswordField(
-            value = form.password,
-            onValueChange = onPasswordChanged,
-            label = "비밀번호",
-            enabled = !confirmStage,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = { if (form.canAdvance) onAdvance() }),
-            autoFocus = !confirmStage,
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(Space.s12)) { // Figma: 규칙 두 개를 한 줄에
-            PasswordRuleRow("8자 이상", check.longEnough)
-            PasswordRuleRow("영문과 숫자 포함", check.hasLetterAndDigit)
+        // Figma: 비밀번호 칸과 규칙 줄은 한 묶음(간격 8)
+        Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+            OrmoPasswordField(
+                value = form.password,
+                onValueChange = onPasswordChanged,
+                label = "비밀번호",
+                enabled = !confirmStage,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { if (form.canAdvance) onAdvance() }),
+                autoFocus = !confirmStage,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.s12)) { // Figma: 규칙 두 개를 한 줄에
+                PasswordRuleRow("8자 이상", check.longEnough)
+                PasswordRuleRow("영문과 숫자 포함", check.hasLetterAndDigit)
+            }
         }
         if (!name.isNullOrEmpty()) {
             OrmoField(value = name, onValueChange = {}, label = "이름", enabled = false, clearable = false)

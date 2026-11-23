@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+ 시스템 스플래시: 흰 배경 + ORMO 심볼(컵·김). 이어서 앱 안 스플래시(0.0 로고 모션)가 나온다. -->
+    <style name="Theme.Ormo" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowSplashScreenBackground">#FFFFFF</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ormo_splash_mark</item>
+    </style>
+</resources>

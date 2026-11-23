@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -27,6 +26,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.ormo.customer.ui.theme.ormoStatusBarsPadding
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusRequester
 import com.ormo.customer.ui.theme.Shapes
@@ -142,10 +144,10 @@ fun MenuSearchScreen(vm: MenuSearchViewModel, availability: () -> OrderAvailabil
         Column(Modifier.fillMaxSize().imePadding()) {
             // 상단: 뒤로가기 + 검색 입력 (Figma 2.1.3). 입력칸은 Fill/Neutral Weak 바탕, 왼쪽 검색 아이콘, 오른쪽 지우기
             Row(
-                Modifier.fillMaxWidth().statusBarsPadding().height(56.dp).padding(start = Space.s8, end = Space.s20),
+                Modifier.fillMaxWidth().ormoStatusBarsPadding().height(56.dp).padding(start = Space.s8, end = Space.s20),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(Modifier.size(40.dp).clickable(role = Role.Button, onClickLabel = "뒤로가기", onClick = onBack), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(48.dp).clickable(role = Role.Button, onClickLabel = "뒤로가기", onClick = onBack), contentAlignment = Alignment.Center) {
                     Icon(OrmoIcons.Back, contentDescription = "뒤로가기", tint = c.iconPrimary, modifier = Modifier.size(Size.iconLg))
                 }
                 SearchInput(query, vm::onQueryChanged, Modifier.weight(1f))
@@ -175,7 +177,7 @@ fun MenuSearchScreen(vm: MenuSearchViewModel, availability: () -> OrderAvailabil
                     }
                 }
                 is SearchView.NoResult -> Column(Modifier.weight(1f)) {
-                    Text(v.title, style = OrmoType.bodyXlBold, color = c.textPrimary, modifier = Modifier.padding(start = Space.pageMargin, end = Space.pageMargin, top = Space.s24))
+                    Text(v.title, style = OrmoType.bodyXlBold, color = c.textPrimary, modifier = Modifier.semantics { heading() }.padding(start = Space.pageMargin, end = Space.pageMargin, top = Space.s24))
                     Text(v.hint, style = OrmoType.bodyMdRegular, color = c.textSecondary, modifier = Modifier.padding(horizontal = Space.pageMargin).padding(top = Space.s4))
                     if (v.showsPopular) PopularList(v.popular, vm, canAdd, snackbar, title = "이 매장 인기 메뉴", onOption = onOption)
                 }
@@ -202,8 +204,8 @@ private fun SearchStart(v: SearchView.Start, vm: MenuSearchViewModel, canAdd: Bo
                     Modifier.fillMaxWidth().clickable(role = Role.Button) { vm.searchRecent(term) }.padding(start = Space.pageMargin, end = Space.s8),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(term, style = OrmoType.bodyMdRegular, color = c.textPrimary, modifier = Modifier.weight(1f).padding(vertical = Space.s12))
-                    Box(Modifier.size(44.dp).clickable(role = Role.Button, onClickLabel = "$term 삭제") { vm.removeRecent(term) }, contentAlignment = Alignment.Center) {
+                    Text(term, style = OrmoType.bodyMdRegular, color = c.textPrimary, modifier = Modifier.weight(1f).padding(vertical = Space.s16)) // Figma: 행 높이 56
+                    Box(Modifier.size(48.dp).clickable(role = Role.Button, onClickLabel = "$term 삭제") { vm.removeRecent(term) }, contentAlignment = Alignment.Center) {
                         Icon(OrmoIcons.Close, contentDescription = null, tint = c.iconSecondary, modifier = Modifier.size(Size.iconMd))
                     }
                 }

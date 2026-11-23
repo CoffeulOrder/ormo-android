@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.ormo.customer.ui.theme.ormoNavigationBarsPadding
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -111,7 +111,7 @@ fun StoreInfoScreen(storeId: String, repo: StoreRepository, onBack: () -> Unit) 
                                 .background(c.fillNeutralWeak)
                                 .padding(Space.s16),
                         )
-                        Box(Modifier.navigationBarsPadding().height(Space.s16))
+                        Box(Modifier.ormoNavigationBarsPadding().height(Space.s16))
                     }
                 }
             }

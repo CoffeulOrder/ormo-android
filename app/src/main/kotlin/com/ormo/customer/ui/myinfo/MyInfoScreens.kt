@@ -170,7 +170,7 @@ fun MyInfoScreen(
                 view.email?.let { Text(it, style = OrmoType.bodyMdRegular, color = c.textSecondary) }
                 (profile?.schoolName ?: school)?.let { Text(it, style = OrmoType.bodySmRegular, color = c.textSecondary) }
             }
-            Column(Modifier.padding(top = Space.s16)) {
+            Column(Modifier.padding(top = Space.s12)) {
                 view.rows.forEach { row ->
                     when (row) {
                         MyInfoRow.ORDER_HISTORY -> MyInfoItem("주문 내역", onClick = onOrders)
@@ -296,6 +296,7 @@ fun ChangePasswordScreen(vm: ChangePasswordViewModel, onBack: () -> Unit) {
     val snackbar = remember { OrmoSnackbarState() }
     LaunchedEffect(Unit) { vm.messages.collect { snackbar.show(it, SnackbarDurations.PARTIAL_FAILURE) } }
     FormScreen(
+        firstStep = true,
         title = "비밀번호를 변경해주세요",
         onBack = onBack,
         snackbar = snackbar,
@@ -382,6 +383,7 @@ fun WithdrawScreen(vm: WithdrawViewModel, onBack: () -> Unit, onOrders: () -> Un
     val form by vm.form.collectAsState()
     val blocked by vm.blocked.collectAsState()
     FormScreen(
+        firstStep = true,
         title = "탈퇴하기 전에\n확인해주세요",
         onBack = onBack,
         bottom = { OrmoButton("탈퇴하기", vm::submit, Modifier.fillMaxWidth(), kind = ButtonKind.Critical, size = ButtonSize.XL, enabled = form.canSubmit || form.submitting, loading = form.submitting) },
@@ -482,7 +484,7 @@ fun NotificationSettingsScreen(vm: NotificationSettingsViewModel, onBack: () -> 
 @Composable
 private fun SettingRow(title: String, body: String, checked: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
     val c = Ormo.colors
-    Row(Modifier.fillMaxWidth().padding(horizontal = Space.pageMargin, vertical = Space.s12), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = Space.s24, vertical = Space.s16), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
             Text(title, style = OrmoType.bodyMdMedium, color = c.textPrimary)
             Text(body, style = OrmoType.bodySmRegular, color = c.textSecondary)

@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -24,6 +23,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.ormo.customer.ui.theme.ormoStatusBarsPadding
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -53,12 +53,12 @@ fun ReceiptScreen(container: AppContainer, orderId: String, onClose: () -> Unit)
         value = (container.stores.loadInfo(id) as? Outcome.Ok)?.value?.let { StoreInfoRules.sellerLines(it.seller) }
     }
     Column(Modifier.fillMaxSize().background(c.bgDefault)) {
-        Row(Modifier.fillMaxWidth().statusBarsPadding().height(56.dp).padding(horizontal = Space.s8), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(40.dp).clickable(role = Role.Button, onClickLabel = "닫기", onClick = onClose), contentAlignment = Alignment.Center) {
+        Row(Modifier.fillMaxWidth().ormoStatusBarsPadding().height(56.dp).padding(horizontal = Space.s8), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(48.dp).clickable(role = Role.Button, onClickLabel = "닫기", onClick = onClose), contentAlignment = Alignment.Center) {
                 Icon(OrmoIcons.Close, "닫기", tint = c.iconPrimary, modifier = Modifier.size(24.dp))
             }
             Text("영수증", style = OrmoType.bodyLgSemibold, color = c.textStrong, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
-            Box(Modifier.size(40.dp))
+            Box(Modifier.size(48.dp))
         }
         val o = order
         if (o != null) {

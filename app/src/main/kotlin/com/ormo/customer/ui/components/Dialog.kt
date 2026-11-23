@@ -69,6 +69,8 @@ fun OrmoDialog(
             dismissOnBackPress = onDismissRequest != null,
             dismissOnClickOutside = onDismissRequest != null,
             usePlatformDefaultWidth = false,
+            // 상태 표시줄 영역까지 창을 펴서 화면 정중앙에 놓는다 (Figma 는 프레임 전체의 가운데)
+            decorFitsSystemWindows = false,
         ),
     ) {
         // 뒤 배경: Background/Dim (#00000033 = 알파 20%)
