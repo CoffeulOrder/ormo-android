@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,6 +16,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.ormo.customer.ui.theme.ormoNavigationBarsPadding
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
@@ -46,7 +46,7 @@ fun LiveOrderBar(bar: LiveBarView, onClick: () -> Unit, modifier: Modifier = Mod
     val shape = RoundedCornerShape(20.dp)
     Box(
         modifier.fillMaxWidth().background(c.bgDefault)
-            .then(if (bottomInset) Modifier.navigationBarsPadding() else Modifier)
+            .then(if (bottomInset) Modifier.ormoNavigationBarsPadding() else Modifier)
             .padding(horizontal = Space.s16).padding(top = Space.s8, bottom = Space.s12),
     ) {
         Column(
@@ -68,8 +68,8 @@ fun LiveOrderBar(bar: LiveBarView, onClick: () -> Unit, modifier: Modifier = Mod
                     Text(bar.pickupNumber?.toString() ?: "-", style = OrmoType.bodyXlBold, color = c.textBrand)
                 }
                 Column(Modifier.weight(1f)) {
-                    Text(bar.title, style = OrmoType.bodyLgSemibold, color = titleColor, maxLines = 1)
-                    bar.subtitle?.let { Text(it, style = OrmoType.bodySmRegular, color = subColor, maxLines = 1) }
+                    Text(bar.title, style = OrmoType.bodyLgSemibold, color = titleColor, maxLines = 2)
+                    bar.subtitle?.let { Text(it, style = OrmoType.bodySmRegular, color = subColor, maxLines = 2) }
                 }
                 Icon(OrmoIcons.ChevronRight, null, tint = if (ready) c.textOnFill else c.iconTertiary, modifier = Modifier.size(24.dp))
             }

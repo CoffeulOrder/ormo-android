@@ -13,6 +13,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -30,27 +33,40 @@ import com.ormo.domain.orders.TimeFormat
 @Composable
 fun StepBar(steps: List<StepView>, modifier: Modifier = Modifier) {
     val c = Ormo.colors
+    // Figma 4.3.1: 막대 4개(높이 8, 둥근 알약, 간격 4) → 8 아래 라벨(14 Medium, 현재 단계는 브랜드색) + 시각(12)
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-        Row(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             steps.forEach { s ->
                 val color = when (s.state) {
                     StepState.DONE, StepState.CURRENT -> c.fillBrand
                     StepState.STOPPED -> c.fillDanger
                     StepState.PENDING -> c.fillBrandWeak
                 }
-                Box(Modifier.weight(1f).height(6.dp).background(color))
+                Box(Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(4.dp)).background(color))
             }
         }
-        Row(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             steps.forEach { s ->
-                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                // 단계의 상태를 색만으로 알리지 않는다 → TalkBack 에는 "만드는 중, 현재 단계, 13:15" 처럼 한 번에 읽힌다
+                val stateText = when (s.state) {
+                    StepState.DONE -> "완료"
+                    StepState.CURRENT -> "현재 단계"
+                    StepState.STOPPED -> "중단됨"
+                    StepState.PENDING -> "대기 중"
+                }
+                Column(
+                    Modifier.weight(1f).semantics(mergeDescendants = true) {
+                        contentDescription = "${s.label}, $stateText" + (s.time?.let { ", ${TimeFormat.clock(it)}" } ?: "")
+                    },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
                     Text(
                         s.label,
-                        style = if (s.state == StepState.CURRENT) OrmoType.bodyXsSemibold else OrmoType.bodyXsMedium,
+                        style = OrmoType.bodySmMedium,
                         color = if (s.state == StepState.CURRENT) c.textBrand else c.textTertiary,
                         textAlign = TextAlign.Center,
                     )
-                    Text(s.time?.let { TimeFormat.clock(it) }.orEmpty(), style = OrmoType.bodyXsMedium, color = c.textTertiary)
+                    s.time?.let { Text(TimeFormat.clock(it), style = OrmoType.bodyXsMedium, color = c.textTertiary) }
                 }
             }
         }
@@ -60,19 +76,20 @@ fun StepBar(steps: List<StepView>, modifier: Modifier = Modifier) {
 /** 섹션 제목 (18 SemiBold) */
 @Composable
 fun OrderSectionTitle(text: String) {
-    Text(text, style = OrmoType.bodyLgSemibold, color = Ormo.colors.textPrimary, modifier = Modifier.fillMaxWidth().padding(horizontal = Space.pageMargin, vertical = Space.s12))
+    Text(text, style = OrmoType.bodyLgSemibold, color = Ormo.colors.textPrimary, modifier = Modifier.fillMaxWidth().padding(horizontal = Space.pageMargin, vertical = Space.s12).semantics { heading() })
 }
 
 /** 주문 내역: 메뉴 이름 + 'N개', 옵션 요약 (Figma 4.3.1) */
 @Composable
 fun OrderLinesBlock(order: Order, modifier: Modifier = Modifier) {
     val c = Ormo.colors
-    Column(modifier.fillMaxWidth().padding(horizontal = Space.pageMargin), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
+    // Figma: 항목 상자 위아래 8, 항목 사이 12 (이름 줄 24 + 8 + 옵션 줄 20)
+    Column(modifier.fillMaxWidth().padding(horizontal = Space.pageMargin, vertical = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
         order.lines.forEach { l ->
-            Column(verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(Space.s4), verticalAlignment = Alignment.Bottom) {
                     Text(l.name, style = OrmoType.bodyMdSemibold, color = c.textPrimary)
-                    Text("${l.qty}개", style = OrmoType.bodyMdRegular, color = c.textSecondary)
+                    Text("${l.qty}개", style = OrmoType.bodySmRegular, color = c.textSecondary)
                 }
                 if (l.optionSummary.isNotBlank()) Text(l.optionSummary, style = OrmoType.bodySmRegular, color = c.textSecondary)
             }

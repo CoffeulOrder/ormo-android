@@ -26,6 +26,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.offset
+import com.ormo.customer.ui.theme.topInset
+import com.ormo.customer.ui.auth.OrmoMark
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
@@ -111,23 +114,28 @@ fun OrderCompleteScreen(vm: OrderCompleteViewModel, onStatus: (orderId: String) 
     Box(Modifier.fillMaxSize().background(c.bgDefault)) {
         Column(Modifier.fillMaxSize()) {
             Column(
-                Modifier.weight(1f).fillMaxWidth().padding(horizontal = Space.pageMargin),
+                // Figma 4.1.1: 심볼 상자 위가 y=117 (상태 표시줄 포함 좌표) — 맨 위부터 쌓는다
+                Modifier.weight(1f).fillMaxWidth().padding(horizontal = Space.pageMargin).padding(top = topInset() + 67.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
             ) {
-                // TODO(asset): Figma 의 마스코트(컵 + 체크) 벡터 — 에셋 내보내기 전까지 임시 원 + 체크
-                Box(Modifier.size(120.dp)) {
-                    Box(Modifier.size(104.dp).clip(CircleShape).background(c.logoMark).align(Alignment.TopStart))
-                    Box(Modifier.size(40.dp).clip(CircleShape).background(c.fillSuccess).align(Alignment.BottomEnd), contentAlignment = Alignment.Center) {
-                        Icon(com.ormo.customer.ui.components.OrmoIcons.Check, null, tint = c.textOnFill, modifier = Modifier.size(24.dp))
+                // 심볼(컵·김) + 오른쪽 아래 초록 체크 배지 (Figma: 배지 지름 36 + 흰 테두리 3, 중심은 심볼 상자의 (79.5, 109.5))
+                Box(Modifier.size(100.54.dp, 128.dp)) {
+                    OrmoMark()
+                    Box(
+                        Modifier.offset(x = (79.5 - 21).dp, y = (109.5 - 21).dp).size(42.dp).clip(CircleShape).background(c.bgDefault),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Box(Modifier.size(36.dp).clip(CircleShape).background(c.fillSuccess), contentAlignment = Alignment.Center) {
+                            Icon(com.ormo.customer.ui.components.OrmoIcons.Check, null, tint = c.textOnFill, modifier = Modifier.size(24.dp))
+                        }
                     }
                 }
-                Text("픽업 번호", style = OrmoType.bodyLgRegular, color = c.textSecondary, modifier = Modifier.padding(top = Space.s32))
+                Text("픽업 번호", style = OrmoType.bodyXlRegular, color = c.textSecondary, modifier = Modifier.padding(top = 38.dp))
                 Text(order?.pickupNumber?.toString() ?: "-", style = OrmoType.display2xlSemibold, color = c.textPrimary)
                 if (order != null) {
                     Column(
-                        Modifier.fillMaxWidth().padding(top = Space.s32).clip(RoundedCornerShape(20.dp)).background(c.bgLower).padding(Space.s20),
-                        verticalArrangement = Arrangement.spacedBy(Space.s12),
+                        Modifier.fillMaxWidth().padding(top = 28.dp).clip(RoundedCornerShape(20.dp)).background(c.bgLower).padding(Space.s20),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         LabelValueRow("매장", order.storeName)
                         order.aheadCount?.let { LabelValueRow("내 앞 대기", "${it}건") }

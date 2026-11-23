@@ -2,11 +2,11 @@ package com.ormo.customer.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.height
@@ -16,6 +16,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import com.ormo.customer.ui.theme.ormoNavigationBarsPadding
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -58,8 +61,10 @@ fun OrmoBottomSheet(
         scrimColor = c.bgDim,
         tonalElevation = 0.dp,
         dragHandle = { SheetHandle() },
+        // 아래 여백은 아래에서 직접 정한다 (Figma: 버튼 아래 20, 홈 인디케이터는 위에 겹침)
+        contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
     ) {
-        Column(Modifier.navigationBarsPadding()) {
+        Column(if (footer == null) Modifier.ormoNavigationBarsPadding() else Modifier) {
             if (title != null) {
                 Text(
                     title,
@@ -68,20 +73,21 @@ fun OrmoBottomSheet(
                     textAlign = if (headerAlign == SheetHeaderAlign.Center) TextAlign.Center else TextAlign.Start,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = Space.pageMargin, vertical = Space.s16),
+                        .padding(horizontal = Space.sheetMargin, vertical = Space.s16)
+                        .semantics { heading() },
                 )
             }
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = Space.pageMargin, vertical = Space.s8),
+                    .padding(horizontal = Space.sheetMargin, vertical = Space.s8),
                 content = content,
             )
             if (footer != null) {
                 Column(
                     Modifier
                         .fillMaxWidth()
-                        .padding(start = Space.s20, end = Space.s20, top = Space.s16, bottom = Space.s16),
+                        .padding(start = Space.s20, end = Space.s20, top = Space.s16, bottom = 20.dp),
                     verticalArrangement = Arrangement.spacedBy(Space.s8),
                     content = footer,
                 )
@@ -94,7 +100,7 @@ fun OrmoBottomSheet(
 private fun SheetHandle() {
     Box(
         Modifier
-            .padding(vertical = Space.s4 + Space.s8) // 시트 위 12 (핸들 위아래 4 + 시트 패딩)
+            .padding(top = Space.s8, bottom = Space.s4 + Space.s8) // Figma: 핸들 위 8
             .width(Size.handleW)
             .height(Size.handleH)
             .clip(Shapes.chip)

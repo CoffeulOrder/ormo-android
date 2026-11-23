@@ -62,18 +62,6 @@ fun rememberNowMs(active: Boolean = true): Long {
 }
 
 /**
- * ORMO 로고 (임시): 파란 원 심볼 + 'RMO' 워드마크. 실제 로고(컵 + 김 + 워드마크 레이어 7개, 0.0 명세)는 에셋이 오면 교체한다.
- */
-@Composable
-fun OrmoLogo(modifier: Modifier = Modifier, wordmarkVisible: Boolean = true) {
-    val c = Ormo.colors
-    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
-        Box(Modifier.size(44.dp).clip(CircleShape).background(c.logoMark))
-        if (wordmarkVisible) Text("RMO", style = OrmoType.displaySmSemibold, color = c.logoInk)
-    }
-}
-
-/**
  * 공통 오류 화면 (디자인 6.1 / Figma): 인터넷 끊김·점검은 **회색 원 아이콘 + 제목 + 본문 + 작은 [다시 시도]** 가운데 정렬,
  * 로그인 만료(6.1.2)는 스켈레톤 화면 위에 '다시 로그인해주세요' 다이얼로그 + [로그인하기].
  */

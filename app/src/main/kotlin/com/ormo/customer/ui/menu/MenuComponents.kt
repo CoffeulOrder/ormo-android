@@ -2,6 +2,7 @@ package com.ormo.customer.ui.menu
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +21,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
@@ -89,8 +92,14 @@ fun MenuRow(
             }
         }
         if (quantity > 0) {
+            // 글자 크기를 키워도 숫자가 잘리지 않게 최소 크기만 정한다. TalkBack 에는 숫자만이 아니라 뜻을 읽어 준다.
             Box(
-                Modifier.size(Size.quantityIcon + 6.dp).clip(CircleShape).background(c.fillBrand),
+                Modifier
+                    .defaultMinSize(Size.quantityIcon + 6.dp, Size.quantityIcon + 6.dp)
+                    .clip(RoundedCornerShape(percent = 50))
+                    .background(c.fillBrand)
+                    .padding(horizontal = 4.dp)
+                    .semantics { contentDescription = "장바구니에 ${quantity}개" },
                 contentAlignment = Alignment.Center,
             ) {
                 Text(quantity.coerceAtMost(99).toString(), style = OrmoType.bodyXsBold, color = c.textOnFill)
@@ -143,7 +152,7 @@ fun CategoryTabs(sections: List<HomeSection>, selected: Int, onSelect: (Int) -> 
                 Box(
                     Modifier
                         .height(Size.tabHeight)
-                        .clickable(role = Role.Tab, onClickLabel = "${section.title} 카테고리로 이동") { onSelect(i) }
+                        .selectable(selected = on, role = Role.Tab) { onSelect(i) }
                         .padding(horizontal = Space.s12),
                     contentAlignment = Alignment.Center,
                 ) {

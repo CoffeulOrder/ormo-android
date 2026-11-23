@@ -10,7 +10,9 @@ object Space {
     val s16 = 16.dp; val s20 = 20.dp; val s24 = 24.dp; val s32 = 32.dp; val s40 = 40.dp
 
     /** 페이지 좌우 여백 */
-    val pageMargin = 24.dp
+    /** 화면 좌우 여백. Figma 프레임의 글자 시작 x 는 압도적으로 20 (시트 안은 24 → [sheetMargin]) */
+    val pageMargin = 20.dp
+    val sheetMargin = 24.dp
 }
 
 object Radius {

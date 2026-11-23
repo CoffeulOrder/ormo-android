@@ -2,15 +2,19 @@ package com.ormo.customer.ui.order
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Icon
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -184,8 +188,11 @@ fun OptionScreen(
     Box(Modifier.fillMaxSize().background(c.bgDefault)) {
         Column(Modifier.fillMaxSize()) {
             OrmoTopNav(onBack = onBack, actions = {
-                NavAction(OrmoIcons.Search, "검색", onSearch)
-                NavAction(OrmoIcons.Person, "내 정보", onMyInfo)
+                // 터치 영역 48 두 개가 8 겹쳐, 아이콘 중심 간격은 Figma 의 40
+                Row(horizontalArrangement = Arrangement.spacedBy((-8).dp)) {
+                    NavAction(OrmoIcons.Search, "검색", onSearch)
+                    NavAction(OrmoIcons.Person, "내 정보", onMyInfo)
+                }
             })
             if (s == null) {
                 Box(Modifier.weight(1f))
@@ -220,7 +227,7 @@ fun OptionScreen(
                 BottomCta {
                     Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                         OrmoButton("바로 주문", { vm.add(goCheckout = true) }, Modifier.weight(1f), kind = ButtonKind.WeakBrand, size = ButtonSize.XL, enabled = enabled)
-                        OrmoButton(s.addLabel, { vm.add(goCheckout = false) }, Modifier.width(200.dp), size = ButtonSize.XL, enabled = enabled)
+                        OrmoButton(s.addLabel, { vm.add(goCheckout = false) }, Modifier.widthIn(min = 200.dp), size = ButtonSize.XL, enabled = enabled)
                     }
                 }
             }
@@ -231,7 +238,7 @@ fun OptionScreen(
 
 @Composable
 private fun NavAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
-    Box(Modifier.size(40.dp).clickable(role = Role.Button, onClickLabel = label, onClick = onClick), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(48.dp).clickable(role = Role.Button, onClickLabel = label, onClick = onClick), contentAlignment = Alignment.Center) {
         Icon(icon, contentDescription = label, tint = Ormo.colors.iconPrimary, modifier = Modifier.size(24.dp))
     }
 }
@@ -252,16 +259,24 @@ private fun GroupSection(group: OptionGroup, s: OptionScreenState, onToggle: (St
             Text("최대 ${group.maxSelect}개", style = OrmoType.bodySmRegular, color = c.textTertiary)
         }
     }
-    Column(Modifier.fillMaxWidth().padding(horizontal = Space.pageMargin, vertical = Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s24)) {
+    // 행 48(터치 영역) 안에서 글자가 가운데라, Figma(행 28 + 간격 24)와 같은 간격이 되도록 위 1 · 아래 3 만 둔다
+    Column(Modifier.fillMaxWidth().padding(start = Space.pageMargin, end = Space.pageMargin, top = 1.dp, bottom = 3.dp), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
         group.choices.forEach { choice ->
             val selected = s.isSelected(choice.id)
             val dimmed = choice.soldOut && !selected
             Row(
                 Modifier
                     .fillMaxWidth()
+                    .heightIn(min = 48.dp) // 터치 영역 48dp (행 사이 간격은 그만큼 줄여 전체 모양은 같게)
                     .alpha(if (dimmed) 0.4f else 1f)
-                    .clickable(enabled = !dimmed, role = if (group.multi) Role.Checkbox else Role.RadioButton) { onToggle(choice.id) }
-                    .semantics { contentDescription = "${choice.name}, ${OptionScreenState.priceLabel(choice)}" + if (selected) ", 선택됨" else "" },
+                    .then(
+                        if (group.multi) {
+                            Modifier.toggleable(value = selected, enabled = !dimmed, role = Role.Checkbox) { onToggle(choice.id) }
+                        } else {
+                            Modifier.selectable(selected = selected, enabled = !dimmed, role = Role.RadioButton) { onToggle(choice.id) }
+                        },
+                    )
+                    .semantics { contentDescription = "${choice.name}, ${OptionScreenState.priceLabel(choice)}" },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (group.multi) OrmoCheckCircle(selected, size = 24.dp) else OrmoRadio(selected)

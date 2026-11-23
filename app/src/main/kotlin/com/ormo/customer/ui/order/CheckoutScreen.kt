@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -28,6 +30,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
@@ -218,7 +222,7 @@ private fun CheckoutContent(
                 verticalArrangement = Arrangement.spacedBy(Space.s8, Alignment.CenterVertically),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text("장바구니가 비어 있어요", style = OrmoType.bodyXlBold, color = c.textPrimary)
+                Text("장바구니가 비어 있어요", style = OrmoType.bodyXlBold, color = c.textPrimary, modifier = Modifier.semantics { heading() })
                 OrmoButton("메뉴 보기", onViewMenu, Modifier.padding(top = Space.s16), kind = ButtonKind.WeakNeutral, size = ButtonSize.M)
             }
             return@Column
@@ -298,7 +302,7 @@ private fun SectionLabel(text: String, bottomPadding: androidx.compose.ui.unit.D
 @Composable
 private fun RadioRow(label: String, selected: Boolean, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable(role = Role.RadioButton, onClick = onClick),
+        Modifier.fillMaxWidth().selectable(selected = selected, role = Role.RadioButton, onClick = onClick), // Figma: 행 24 + 간격 12 (터치 영역을 늘리면 간격이 달라진다)
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Space.s12),
     ) {
@@ -346,7 +350,7 @@ private fun ConfirmingScreen(checkFailed: Boolean, onRecheck: () -> Unit, onGive
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             if (!checkFailed) CircularProgressIndicator(color = c.fillBrand, modifier = Modifier.size(40.dp))
-            Text(PaymentMessages.CONFIRMING.title, style = OrmoType.displayXsSemibold, color = c.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = Space.s16))
+            Text(PaymentMessages.CONFIRMING.title, style = OrmoType.displayXsSemibold, color = c.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.semantics { heading() }.padding(top = Space.s16))
             Text(PaymentMessages.CONFIRMING.body, style = OrmoType.bodyMdRegular, color = c.textSecondary, textAlign = TextAlign.Center)
             if (checkFailed) {
                 // TODO(spec 3.2.2): 명세는 뒤로가기 막음뿐이라 갇히지 않게 하는 안내·탈출구는 가정
@@ -372,7 +376,7 @@ private fun ResultScreen(title: String, body: String, primary: Pair<String, () -
             verticalArrangement = Arrangement.spacedBy(Space.s8, Alignment.CenterVertically),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(title, style = OrmoType.displayXsSemibold, color = c.textPrimary, textAlign = TextAlign.Center)
+            Text(title, style = OrmoType.displayXsSemibold, color = c.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.semantics { heading() })
             Text(body, style = OrmoType.bodyMdRegular, color = c.textSecondary, textAlign = TextAlign.Center)
         }
         BottomCta {

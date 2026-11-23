@@ -11,12 +11,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.ormo.customer.ui.theme.ormoStatusBarsPadding
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
@@ -127,7 +128,7 @@ fun TermsRow(
         if (onOpen != null) {
             Box(
                 Modifier
-                    .size(44.dp)
+                    .size(44.dp) // Figma 4.6: 44×44
                     .clickable(role = Role.Button, onClickLabel = "$label 보기", onClick = onOpen),
                 contentAlignment = Alignment.Center,
             ) {
@@ -231,7 +232,7 @@ fun OrmoBadge(text: String, kind: BadgeKind, modifier: Modifier = Modifier) {
     }
     Box(
         modifier
-            .height(Size.badgeHeight)
+            .heightIn(min = Size.badgeHeight)
             .clip(Shapes.control40)
             .background(bg)
             .padding(horizontal = Space.s8),
@@ -267,22 +268,23 @@ fun OrmoTopNav(
         modifier = modifier
             .fillMaxWidth()
             .then(if (transparent) Modifier else Modifier.background(c.bgDefault))
-            .then(if (applyStatusBarInset) Modifier.statusBarsPadding() else Modifier)
-            .height(56.dp)
-            .padding(horizontal = Space.s8),
+            .then(if (applyStatusBarInset) Modifier.ormoStatusBarsPadding() else Modifier)
+            .heightIn(min = 56.dp)
+            // 아이콘 버튼은 터치 영역 48(Figma 40)이라, 좌우 여백을 4 줄여 아이콘 위치는 Figma 와 같게
+            .padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (onBack != null) {
             Box(
                 Modifier
-                    .size(40.dp)
+                    .size(48.dp)
                     .clickable(role = Role.Button, onClickLabel = "뒤로가기", onClick = onBack),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(OrmoIcons.Back, contentDescription = "뒤로가기", tint = iconColor, modifier = Modifier.size(Size.iconLg))
             }
         } else if (layout == NavLayout.Center) {
-            Box(Modifier.size(40.dp))
+            Box(Modifier.size(48.dp))
         }
         when (layout) {
             NavLayout.Center -> Text(
@@ -320,7 +322,7 @@ fun OrmoTopNav(
             )
         }
         if (layout == NavLayout.Center && actions == EmptyActions) {
-            Box(Modifier.size(40.dp))
+            Box(Modifier.size(48.dp))
         } else {
             actions()
         }
@@ -366,7 +368,7 @@ fun OrmoStepper(
     // Figma Quantity Picker: 알약(반경 12, 테두리 1), 버튼과 값 사이 1×16 구분선, 값 최소 36 · 좌우 8 · Body md/Medium
     Row(
         modifier
-            .height(if (small) 40.dp else 48.dp)
+            .heightIn(min = if (small) 40.dp else 48.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(c.bgDefault)
             .border(Size.borderThin, c.borderDefault, RoundedCornerShape(12.dp)),

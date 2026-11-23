@@ -1,11 +1,15 @@
 package com.ormo.customer.ui.auth
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -88,6 +92,8 @@ fun LoginScreen(
     val domains = ui.domains
 
     FormScreen(
+        firstStep = true,
+        bottomPadding = 24.dp,
         title = "학교 이메일로 \n로그인해주세요",
         onBack = null,
         snackbar = snackbar,
@@ -102,10 +108,11 @@ fun LoginScreen(
                 loading = form.submitting,
             )
             // 하단 보조 행동 (Ghost 텍스트): '비밀번호 찾기 | 회원가입'. 잠겼으면 [비밀번호 재설정하기] (0.1.2)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                OrmoButton(if (lockLabel != null) "비밀번호 재설정하기" else "비밀번호 찾기", onForgotPassword, kind = ButtonKind.Ghost)
+            // Figma: 글자 사이 간격이 좁은 한 줄 (버튼 여백 없이), 눌리는 영역은 높이 48
+            Row(Modifier.fillMaxWidth().offset(y = (-4).dp), horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
+                LinkText(if (lockLabel != null) "비밀번호 재설정하기" else "비밀번호 찾기", onForgotPassword)
                 Text("|", style = OrmoType.bodyMdMedium, color = Ormo.colors.textTertiary)
-                OrmoButton("회원가입", onSignup, kind = ButtonKind.Ghost)
+                LinkText("회원가입", onSignup)
             }
         },
     ) {
@@ -151,7 +158,7 @@ fun LoginScreen(
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .clickable(role = Role.RadioButton) {
+                            .selectable(selected = d.domain == form.domain, role = Role.RadioButton) {
                                 vm.onDomainSelected(d.domain)
                                 showDomainSheet = false
                             }
@@ -159,7 +166,7 @@ fun LoginScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text("@${d.domain}", style = OrmoType.bodyMdMedium, color = Ormo.colors.textPrimary, modifier = Modifier.weight(1f))
-                        if (d.domain == form.domain) Icon(OrmoIcons.Check, contentDescription = "선택됨", tint = Ormo.colors.iconBrand, modifier = Modifier.size(Size.iconLg))
+                        if (d.domain == form.domain) Icon(OrmoIcons.Check, contentDescription = null, tint = Ormo.colors.iconBrand, modifier = Modifier.size(Size.iconLg))
                     }
                 }
             }
@@ -176,5 +183,13 @@ fun LoginScreen(
             dismissLabel = "닫기",
             onDismiss = vm::dismissRestricted,
         )
+    }
+}
+
+/** 로그인 아래 작은 링크 글자 (Figma: 14 Medium, 버튼 여백 없음) */
+@Composable
+private fun LinkText(text: String, onClick: () -> Unit) {
+    Box(Modifier.heightIn(min = 48.dp).clickable(role = Role.Button, onClick = onClick), contentAlignment = Alignment.Center) {
+        Text(text, style = OrmoType.bodyMdMedium, color = Ormo.colors.textSecondary)
     }
 }

@@ -21,6 +21,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -216,7 +220,7 @@ fun OrderDetailScreen(
                     verticalArrangement = Arrangement.spacedBy(Space.s8, Alignment.CenterVertically),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Text("주문 정보를 불러오지 못했어요", style = OrmoType.bodyXlBold, color = c.textPrimary)
+                    Text("주문 정보를 불러오지 못했어요", style = OrmoType.bodyXlBold, color = c.textPrimary, modifier = Modifier.semantics { heading() })
                     OrmoButton("다시 시도", vm::retry, Modifier.padding(top = Space.s16), kind = ButtonKind.WeakNeutral, size = ButtonSize.M)
                 }
                 order == null -> Box(Modifier.weight(1f))
@@ -224,11 +228,14 @@ fun OrderDetailScreen(
                     val view = OrderDetailRules.view(order)
                     Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                         DetailHeader(order, view)
+                        // Figma: 구분 띠(12) 뒤 12 여백, 섹션 사이도 앞뒤 12
                         OrmoThickDivider()
+                        Spacer(Modifier.height(Space.s12))
                         OrderSectionTitle("주문 내역")
                         OrderLinesBlock(order)
-                        Spacer(Modifier.height(Space.s16))
+                        Spacer(Modifier.height(Space.s12))
                         OrmoThickDivider()
+                        Spacer(Modifier.height(Space.s12))
                         OrderSectionTitle("결제 정보")
                         PaymentInfoBlock(order)
                         Spacer(Modifier.height(Space.s24))
@@ -277,12 +284,13 @@ fun OrderDetailScreen(
 @Composable
 private fun DetailHeader(order: Order, view: OrderDetailView) {
     val c = Ormo.colors
-    Column(Modifier.fillMaxWidth().padding(horizontal = Space.pageMargin, vertical = Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-        Text(view.headline, style = OrmoType.displayXsSemibold, color = c.textPrimary)
-        Text("${order.storeName} · ${TimeFormat.dateDowClock(order.placedAt)}", style = OrmoType.bodySmRegular, color = c.textSecondary)
-        view.subline?.let { Text(it, style = OrmoType.bodySmMedium, color = c.textBrand) }
+    // Figma 4.3.1: 제목 글자 y=130(내비 아래 24) · 메타(16 Regular) 제목 아래 8 · 아래 24 → 단계 막대 y=218
+    Column(Modifier.fillMaxWidth().padding(start = Space.pageMargin, end = Space.pageMargin, top = 24.dp), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+        // 상태가 바뀌면(5초마다 새로고침) TalkBack 이 새 문구를 읽어 준다
+        Text(view.headline, style = OrmoType.displayXsSemibold, color = c.textPrimary, modifier = Modifier.semantics { heading(); liveRegion = LiveRegionMode.Polite })
+        Text("${order.storeName} · ${TimeFormat.dateDowClock(order.placedAt)}", style = OrmoType.bodyMdRegular, color = c.textSecondary)
     }
-    Column(Modifier.fillMaxWidth().padding(horizontal = Space.pageMargin), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = Space.pageMargin).padding(top = 24.dp), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
         view.bigPickupNumber?.let {
             Text(it.toString(), style = OrmoType.display2xlSemibold, color = c.textBrand, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
         }

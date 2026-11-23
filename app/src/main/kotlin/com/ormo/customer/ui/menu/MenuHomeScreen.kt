@@ -9,8 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -29,8 +28,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.ormo.customer.ui.theme.ormoNavigationBarsPadding
+import com.ormo.customer.ui.theme.ormoStatusBarsPadding
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -300,23 +303,24 @@ fun MenuHomeScreen(
 private fun MenuHomeTopBar(storeName: String, onStoreSelect: () -> Unit, onSearch: () -> Unit, onMyInfo: () -> Unit) {
     val c = Ormo.colors
     Row(
-        Modifier.fillMaxWidth().background(c.bgDefault).statusBarsPadding().padding(horizontal = Space.s20, vertical = Space.s8),
+        Modifier.fillMaxWidth().background(c.bgDefault).ormoStatusBarsPadding().padding(horizontal = Space.s20, vertical = 4.dp), // 버튼 48 + 위아래 4 = Figma 의 40 + 8·8
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Row(
-            Modifier.clickable(role = Role.Button, onClickLabel = "매장 변경", onClick = onStoreSelect).height(40.dp),
+            Modifier.clickable(role = Role.Button, onClickLabel = "매장 변경", onClick = onStoreSelect).height(48.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Space.s8),
         ) {
             Text(storeName, style = OrmoType.bodyXlSemibold, color = c.textPrimary, maxLines = 1)
             Icon(OrmoIcons.ChevronDown, contentDescription = null, tint = c.iconPrimary, modifier = Modifier.size(Size.iconLg))
         }
-        Row {
-            Box(Modifier.size(40.dp).clickable(role = Role.Button, onClickLabel = "메뉴 검색", onClick = onSearch), contentAlignment = Alignment.Center) {
+        // 두 버튼은 터치 영역 48 이 8 만큼 겹쳐, 아이콘 중심은 Figma(40 간격)와 같다
+        Row(Modifier.offset(x = 4.dp), horizontalArrangement = Arrangement.spacedBy((-8).dp)) {
+            Box(Modifier.size(48.dp).clickable(role = Role.Button, onClickLabel = "메뉴 검색", onClick = onSearch), contentAlignment = Alignment.Center) {
                 Icon(OrmoIcons.Search, contentDescription = null, tint = c.iconPrimary, modifier = Modifier.size(Size.iconLg))
             }
-            Box(Modifier.size(40.dp).clickable(role = Role.Button, onClickLabel = "내 정보", onClick = onMyInfo), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(48.dp).clickable(role = Role.Button, onClickLabel = "내 정보", onClick = onMyInfo), contentAlignment = Alignment.Center) {
                 Icon(OrmoIcons.Person, contentDescription = null, tint = c.iconPrimary, modifier = Modifier.size(Size.iconLg))
             }
         }
@@ -348,7 +352,7 @@ private fun EmptyMenuBody(onOtherStore: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(Space.s8, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("아직 메뉴가 없어요", style = OrmoType.bodyXlBold, color = c.textPrimary)
+        Text("아직 메뉴가 없어요", style = OrmoType.bodyXlBold, color = c.textPrimary, modifier = Modifier.semantics { heading() })
         Text("메뉴를 준비하고 있어요", style = OrmoType.bodyMdRegular, color = c.textSecondary)
         OrmoButton("다른 매장 보기", onOtherStore, Modifier.padding(top = Space.s16), kind = ButtonKind.WeakNeutral, size = ButtonSize.M)
     }
@@ -362,7 +366,7 @@ private fun ErrorBody(onRetry: () -> Unit, onOtherStore: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(Space.s8, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("인터넷 연결을 확인해주세요", style = OrmoType.bodyXlBold, color = c.textPrimary)
+        Text("인터넷 연결을 확인해주세요", style = OrmoType.bodyXlBold, color = c.textPrimary, modifier = Modifier.semantics { heading() })
         Text("연결이 복구되면 다시 불러올게요", style = OrmoType.bodyMdRegular, color = c.textSecondary)
         OrmoButton("다시 시도", onRetry, Modifier.padding(top = Space.s16), kind = ButtonKind.WeakNeutral, size = ButtonSize.M)
         OrmoButton("다른 매장 보기", onOtherStore, kind = ButtonKind.Ghost)
@@ -377,7 +381,7 @@ private fun CartBar(count: Int, total: Int, onClick: () -> Unit) {
         Modifier
             .fillMaxWidth()
             .background(c.bgDefault)
-            .navigationBarsPadding()
+            .ormoNavigationBarsPadding()
             .padding(horizontal = Space.s16, vertical = Space.s12),
     ) {
         Row(
@@ -387,10 +391,11 @@ private fun CartBar(count: Int, total: Int, onClick: () -> Unit) {
                 .clip(Shapes.control56)
                 .background(c.fillBrand)
                 .clickable(role = Role.Button, onClick = onClick)
+                .semantics(mergeDescendants = true) { contentDescription = "장바구니 ${count}개, ${formatWon(total)}, 보기" }
                 .padding(horizontal = Space.s20),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(Modifier.size(24.dp).clip(CircleShape).background(c.textOnFill), contentAlignment = Alignment.Center) {
+            Box(Modifier.defaultMinSize(24.dp, 24.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(percent = 50)).background(c.textOnFill).padding(horizontal = 4.dp), contentAlignment = Alignment.Center) {
                 Text(count.coerceAtMost(99).toString(), style = OrmoType.bodySmBold, color = c.textBrand)
             }
             Text("${formatWon(total)} 보기", style = OrmoType.bodyLgSemibold, color = c.textOnFill, modifier = Modifier.weight(1f).padding(end = 24.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)

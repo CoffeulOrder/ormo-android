@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.BasicTextField
@@ -31,7 +32,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.error
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -112,16 +117,25 @@ fun OrmoField(
             visualTransformation = visualTransformation,
             keyboardOptions = keyboardOptions,
             keyboardActions = keyboardActions,
-            modifier = Modifier.fillMaxWidth().focusRequester(requester),
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(requester)
+                // TalkBack: 칸의 이름(라벨)과 오류를 함께 읽는다. 라벨은 칸 밖의 글자라 연결되지 않으므로 직접 붙인다.
+                .semantics {
+                    val name = label ?: placeholder
+                    if (name != null) contentDescription = name
+                    if (error != null) error(error)
+                },
             decorationBox = { inner ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(size.height)
+                        .heightIn(min = size.height)
                         .clip(Shapes.control56)
                         .background(c.bgDefault)
                         .border(borderWidth, borderColor, Shapes.control56)
-                        .padding(horizontal = Space.s16),
+                        // 오른쪽 아이콘은 48dp 터치 영역을 갖는다 → 그만큼 오른쪽 여백을 줄여 모양은 그대로
+                        .padding(start = Space.s16, end = if (trailing != null || (clearable && focused && value.isNotEmpty() && suffix == null)) Space.s4 else Space.s16),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(Space.s8),
                 ) {
@@ -132,29 +146,31 @@ fun OrmoField(
                         inner()
                     }
                     if (suffix != null) {
-                        Text(
-                            suffix,
-                            style = OrmoType.bodyMdRegular,
-                            color = c.textTertiary,
-                            modifier = if (onSuffixClick != null) Modifier.clickable(role = Role.Button, onClick = onSuffixClick) else Modifier,
-                        )
+                        val suffixText: @Composable () -> Unit = { Text(suffix, style = OrmoType.bodyMdRegular, color = c.textTertiary) }
+                        if (onSuffixClick != null) {
+                            // 도메인 선택: 눌리는 영역을 48dp 이상으로
+                            Box(
+                                Modifier.heightIn(min = 48.dp).clickable(role = Role.Button, onClickLabel = "학교 메일 주소 선택", onClick = onSuffixClick),
+                                contentAlignment = Alignment.Center,
+                            ) { suffixText() }
+                        } else {
+                            suffixText()
+                        }
                     }
                     val showClear = clearable && focused && value.isNotEmpty() && suffix == null && trailing == null && enabled
                     if (showClear) {
-                        Icon(
-                            OrmoIcons.ClearCircle,
-                            contentDescription = "지우기",
-                            tint = c.iconTertiary,
-                            modifier = Modifier
-                                .size(Size.iconLg)
-                                .clickable(role = Role.Button) { onValueChange("") },
-                        )
+                        Box(
+                            Modifier.size(48.dp).clickable(role = Role.Button, onClickLabel = "입력 지우기") { onValueChange("") },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(OrmoIcons.ClearCircle, contentDescription = null, tint = c.iconTertiary, modifier = Modifier.size(Size.iconLg))
+                        }
                     }
                     if (trailing != null) {
                         Box(
                             Modifier
-                                .size(Size.iconLg)
-                                .then(if (onSuffixClick != null) Modifier.clickable(role = Role.Button, onClick = onSuffixClick) else Modifier),
+                                .size(48.dp)
+                                .then(if (onSuffixClick != null) Modifier.clickable(role = Role.Button, onClickLabel = "학교 메일 주소 선택", onClick = onSuffixClick) else Modifier),
                             contentAlignment = Alignment.Center,
                         ) { trailing() }
                     }
@@ -166,7 +182,8 @@ fun OrmoField(
             if (error != null) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
                     Icon(OrmoIcons.Alert, contentDescription = null, tint = c.iconDanger, modifier = Modifier.size(Size.iconSm))
-                    Text(error!!, style = OrmoType.bodySmMedium, color = c.textDanger)
+                    // 오류가 나타나면 TalkBack 이 바로 읽어 준다
+                    Text(error!!, style = OrmoType.bodySmMedium, color = c.textDanger, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
                 }
             } else {
                 Text(helper!!, style = OrmoType.bodySmRegular, color = c.textTertiary)
@@ -207,14 +224,15 @@ fun OrmoPasswordField(
         enabled = enabled,
         autoFocus = autoFocus,
         trailing = {
-            Icon(
-                if (visible) OrmoIcons.EyeOff else OrmoIcons.Eye,
-                contentDescription = if (visible) "비밀번호 숨기기" else "비밀번호 표시",
-                tint = c.iconSecondary,
-                modifier = Modifier
-                    .size(Size.iconLg)
-                    .clickable(role = Role.Button) { visible = !visible },
-            )
+            Box(
+                Modifier
+                    .size(48.dp)
+                    .clickable(role = Role.Button, onClickLabel = if (visible) "비밀번호 숨기기" else "비밀번호 표시") { visible = !visible }
+                    .semantics { stateDescription = if (visible) "비밀번호가 보이는 중" else "비밀번호가 가려진 중" },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(if (visible) OrmoIcons.EyeOff else OrmoIcons.Eye, contentDescription = null, tint = c.iconSecondary, modifier = Modifier.size(Size.iconLg))
+            }
         },
         visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
         keyboardOptions = keyboardOptions,

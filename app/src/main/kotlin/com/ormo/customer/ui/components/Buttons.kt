@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,6 +30,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -115,7 +118,7 @@ fun OrmoButton(
 
     Box(
         modifier = modifier
-            .height(height)
+            .heightIn(min = height)
             .clip(shape)
             .background(bg)
             .then(if (kind == ButtonKind.Outline) Modifier.border(BorderStroke(Size.borderThin, if (enabled) Ormo.colors.iconQuaternary else c.borderDefault), shape) else Modifier)
@@ -127,11 +130,13 @@ fun OrmoButton(
                 onClick = guarded,
             )
             .then(if (pressed && enabled && !loading) Modifier.background(c.fillPressed) else Modifier)
-            .padding(horizontal = hPad),
+            .padding(horizontal = hPad)
+            .semantics { if (loading) stateDescription = "처리 중" },
         contentAlignment = Alignment.Center,
     ) {
         // 로딩 중에도 라벨을 그려 폭을 유지하고 투명하게 둔다
-        Text(text, style = textStyle, color = fg, modifier = Modifier.alpha(if (loading) 0f else 1f), maxLines = 1)
+        // 글자 크기를 키운 설정에서는 잘리지 않고 두 줄로 나뉜다
+        Text(text, style = textStyle, color = fg, modifier = Modifier.alpha(if (loading) 0f else 1f), maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         if (loading) {
             CircularProgressIndicator(color = fg, strokeWidth = 2.dp, modifier = Modifier.size(Size.iconMd))
         }
@@ -150,7 +155,7 @@ fun PrimaryButtonXl(text: String, enabled: Boolean, loading: Boolean = false, on
  * 버튼 배치: 1개 / 2개 가로 / 2개 세로(문구가 길 때). 보조 액션(Ghost)은 아래에 위 여백 8.
  */
 @Composable
-fun BottomCta(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+fun BottomCta(modifier: Modifier = Modifier, bottomPadding: androidx.compose.ui.unit.Dp = Space.s32, content: @Composable ColumnScope.() -> Unit) {
     val c = Ormo.colors
     Column(modifier = modifier.fillMaxWidth()) {
         Box(
@@ -163,7 +168,7 @@ fun BottomCta(modifier: Modifier = Modifier, content: @Composable ColumnScope.()
             modifier = Modifier
                 .fillMaxWidth()
                 .background(c.bgDefault)
-                .padding(start = Space.s20, end = Space.s20, bottom = Space.s32),
+                .padding(start = Space.s20, end = Space.s20, bottom = bottomPadding),
             verticalArrangement = Arrangement.spacedBy(Space.s8),
             content = content,
         )
