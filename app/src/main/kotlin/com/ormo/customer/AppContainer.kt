@@ -55,16 +55,28 @@ class AppContainer(context: Context) {
 
     // ---- 주문·결제 (M4) ----
     // BE·PG 가 없어 가짜 서버와 가짜 PG 창을 쓴다 (FakePaymentServer). 결제 진행은 앱 범위 하나 — 화면이 사라져도 결제 확인은 이어진다.
-    private val storeDirectory = FakeStoreDirectory()
-    val fakePayments = FakePaymentServer(storeDirectory, currentStoreId = { cart.storeId })
+    // 실서버 모드(-Pormo.realBackend=true)에서는 매장·메뉴·주문·결제 상태·내 주문이 BE 로 간다. 결제창은 개발 서버 전용 DEV-1 로 확정하고,
+    // 실제 PG(PortOne)는 환경 전환 뒤 연결한다 (릴리스는 결제 불가 게이트웨이).
+    private val realCatalog = !BuildConfig.USE_FAKE_BACKEND
+    private val storeDirectory: com.ormo.data.store.StoreDirectory =
+        if (realCatalog) com.ormo.data.backend.RemoteStoreDirectory(client!!) else FakeStoreDirectory()
+    val fakePayments = FakePaymentServer(FakeStoreDirectory(), currentStoreId = { cart.storeId })
     private val pendingPayments = PrefsPendingPaymentStore(context)
-    val payments = PaymentCoordinator(fakePayments.orderApi, fakePayments.gateway, pendingPayments)
+    val payments = if (realCatalog) {
+        PaymentCoordinator(
+            com.ormo.data.backend.RemoteOrderApi(client!!) { cart.storeId },
+            if (BuildConfig.DEBUG) com.ormo.data.backend.DevPaymentGateway(client) else com.ormo.data.backend.UnavailablePaymentGateway,
+            pendingPayments,
+        )
+    } else {
+        PaymentCoordinator(fakePayments.orderApi, fakePayments.gateway, pendingPayments)
+    }
     val paymentMethods = PrefsPaymentMethodStore(context)
 
     // ---- 주문 확인·내 주문 (M5) ----
     // 가짜 내 주문 서버: 결제가 승인되면 접수 대기 주문이 생기고, 개발용 상태 패널이 매장 쪽 동작을 대신한다.
     val fakeOrders = com.ormo.customer.fake.FakeOrderServer()
-    val orders = com.ormo.data.orders.OrderRepository(fakeOrders)
+    val orders = com.ormo.data.orders.OrderRepository(if (realCatalog) com.ormo.data.backend.RemoteMyOrdersApi(client!!) else fakeOrders)
     val reorderer by lazy { com.ormo.customer.ui.order.Reorderer(menus, cart, stores) { accountKey } }
     val notificationPrompts = com.ormo.customer.session.PrefsNotificationPromptStore(context)
 
@@ -138,9 +150,9 @@ class AppContainer(context: Context) {
 
     // ---- 매장·메뉴 (M3) ----
     // BE 가 없어 가짜 데이터를 쓴다 (BuildConfig.USE_FAKE_BACKEND). 메뉴 캐시·최근 검색어는 백업 제외 영역에 둔다.
-    private val menuApi = if (BuildConfig.USE_FAKE_BACKEND) FakeMenuApi() else com.ormo.data.menu.RemoteMenuApi(client!!)
+    private val menuApi = if (BuildConfig.USE_FAKE_BACKEND) FakeMenuApi() else com.ormo.data.backend.BackendMenuApi(client!!)
     val menus = MenuRepository(menuApi, FileMenuCache(File(context.noBackupFilesDir, "menu")), appScope)
-    val stores = StoreRepository(FakeStoreDirectory(), PrefsSelectedStoreStore(context))
+    val stores = StoreRepository(storeDirectory, PrefsSelectedStoreStore(context))
     val recentSearches = RecentSearchRepository(FileRecentSearchStore(File(context.noBackupFilesDir, "recent-searches.json")))
 
     private val accountPrefs = context.getSharedPreferences("ormo_account", Context.MODE_PRIVATE)

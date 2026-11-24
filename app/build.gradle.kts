@@ -22,10 +22,12 @@ android {
         // 매장·메뉴·주문·결제·알림 설정은 BE 에 아직 없는 부분이 있어(BE_GAP_M8.md) 가짜 서버(fake/)를 그대로 쓴다.
         //   ./gradlew :app:installDebug -Pormo.realAuth=true [-Pormo.apiBaseUrl=http://10.0.2.2:8080/api/v1]
         // 에뮬레이터에서 내 PC 의 서버는 10.0.2.2 로 보인다.
-        val realAuth = (project.findProperty("ormo.realAuth") as String?)?.toBoolean() ?: false
-        val apiBaseUrl = (project.findProperty("ormo.apiBaseUrl") as String?) ?: "http://10.0.2.2:8080/api/v1"
+        //   ./gradlew :app:installDebug -Pormo.realBackend=true   ← 인증 + 매장·메뉴·주문·결제(개발 서버 DEV-1)까지 전부 실서버 (알림 설정만 가짜)
+        val realBackend = (project.findProperty("ormo.realBackend") as String?)?.toBoolean() ?: false
+        val realAuth = realBackend || ((project.findProperty("ormo.realAuth") as String?)?.toBoolean() ?: false)
+        val apiBaseUrl = (project.findProperty("ormo.apiBaseUrl") as String?) ?: if (realBackend) "https://api.orso.it.kr/api/v1" else "http://10.0.2.2:8080/api/v1"
         buildConfigField("boolean", "USE_FAKE_AUTH", (!realAuth).toString())
-        buildConfigField("boolean", "USE_FAKE_BACKEND", "true")
+        buildConfigField("boolean", "USE_FAKE_BACKEND", (!realBackend).toString())
         buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
     }
 

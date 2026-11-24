@@ -45,15 +45,24 @@ BE: `PENDING_PAYMENT → REQUESTED → ACCEPTED → MAKING → READY → COMPLET
 8. **인기 메뉴** 기준(최근 7일 상위 5개)·**메뉴 버전**(캐시 무효화) — 없음. 앱은 메뉴를 매장별로 다시 받으면 되지만 인기 표시는 BE 값 필요
 9. 쿠폰·이벤트·배너·내 메뉴·추천인 — 베타 제외라 요청 안 함
 
-## 4. 앱 쪽 구현 계획 (M8-5, 가이드 상세 확인 후)
+## 4. 앱 쪽 구현 현황 (M8-5)
 
-1. `RemoteStoreDirectory`: MS-5 + MS-6 (주소·재개 시각이 없는 동안은 해당 줄 숨김)
-2. `RemoteMenuApi`: 매장 → 카테고리(MS-9) → 메뉴(MS-10) 조합으로 `MenuPayload` 구성, 옵션은 메뉴 진입 시 MS-11 지연 호출(앱 메뉴 캐시 구조 수정 필요: 학교 단위 한 번 → 매장 단위)
-3. `RemoteOrderApi`: MS-16 (키 = 기존 `Idempotency-Key`), MS-28 폴링, MS-29
-4. `RemoteMyOrdersApi`: MS-17/18/19 + 위 상태 도출 규칙(`cancelable`·`refundStatus`)
-5. 결제: 개발 서버는 `DEV-1` 게이트웨이, 운영 전환 때 PortOne Android SDK 게이트웨이
-6. 오류 코드 매핑 추가: `OD009`(결제 기한 만료 → 상태 재조회), `OD010`(같은 키·다른 주문 → 새 키), `OD006`(현재 상태에서 불가 → 상세 갱신), `PY009/PY012`(결제 미확인·확인 중), `PY013`
-7. 전부 끝나면 `fake/` 삭제와 릴리스 가드 제거
+켜는 방법: `-Pormo.realBackend=true` (기본 주소 `https://api.orso.it.kr/api/v1`, `-Pormo.apiBaseUrl=` 로 바꿈). 끄면 기존 가짜(fake) 그대로.
+
+| 항목 | 상태 | 구현 / 메모 |
+|---|---|---|
+| 매장 목록·정보 (MS-5·6) | 구현 | `RemoteStoreDirectory`. 주소·재개 시각이 없으면 해당 줄 숨김 |
+| 카테고리·메뉴·옵션 (MS-9·10·11) | 구현 | `BackendMenuApi`. 옵션 있는 메뉴는 메뉴 진입 시 MS-11 호출 |
+| 주문 생성 (MS-16) | 구현 | `RemoteOrderApi`. 기존 `Idempotency-Key` 사용. **수령 방법(매장/테이크아웃)** 은 BE 필드가 없어 임시로 `requestMemo` 에 `[테이크아웃]` 형태로 전달 |
+| 결제 상태 (MS-28) | 구현 | 폴링으로 도출 |
+| 결제 (개발 서버) | 구현 | DEBUG 빌드만 `DevPaymentGateway`(DEV-1). 릴리스는 `UnavailablePaymentGateway` — **PortOne 연동 전까지 릴리스 결제 불가** |
+| 내 주문 목록·상세·취소 (MS-17·18·19) | 구현 | `RemoteMyOrdersApi`. `ACCEPTED` 는 '만드는 중'으로 묶음, 환불 성공+완료는 REFUNDED 로 도출 |
+| 재주문 | 구현 | 메뉴 id 가 없어도 이름·옵션 이름으로 매칭(`ReorderRules`) |
+
+확인되지 않은 값(`TODO(BE)` 로 표시): 내 주문 목록 항목 모양, 취소 요청 본문, `payment.status` 값 목록, `dayOfWeek` 범위, 옵션 `type`, 미수령(UNCLAIMED) 상태, 취소 주체(canceledBy).
+검증: MockWebServer 테스트(BE 모양 응답) + 에뮬레이터에서 로컬 모의 서버로 로그인→매장→메뉴/옵션→결제→상세→완료→내역→재주문→취소까지 확인. **실서버는 계정이 없어 호출하지 않았습니다.**
+
+아직 남은 것: `fake/` 삭제 불가(알림 설정·PortOne 게이트웨이·FCM 미구현), 오류 코드 매핑(`OD009`·`OD010`·`PY009`·`PY012`·`PY013`)은 일부만 반영.
 
 ## 5. 가이드에서 앱에 바로 반영할 규칙 (체크리스트 대응)
 

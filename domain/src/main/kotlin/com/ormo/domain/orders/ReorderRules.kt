@@ -56,15 +56,23 @@ object ReorderRules {
     /** @param menus 주문한 **그 매장**의 현재 메뉴 (다른 매장이면 호출하는 쪽이 1.1.2 장바구니 경고를 먼저 거친다) */
     fun plan(order: Order, menus: Collection<MenuItem>): ReorderPlan {
         val byId = menus.associateBy { it.id }
+        val byName = menus.associateBy { it.name }
         val lines = ArrayList<ReorderLine>()
         val missing = ArrayList<String>()
         for (line in order.lines) {
-            val item = byId[line.menuId]
+            // 실서버의 주문 줄에는 메뉴 id 가 없어(BE 상세) 이름으로 찾는다
+            val item = (if (line.menuId.isNotEmpty()) byId[line.menuId] else null) ?: byName[line.name]
             if (item == null) {
                 missing += line.name
                 continue
             }
-            val ids = OptionRules.normalizeChoiceIds(item, line.choiceIds).ids
+            // 선택지 id 도 없으면 옵션 요약("HOT | 샷 추가")의 이름으로 찾는다 (같은 이름이 여러 그룹에 있으면 첫 번째)
+            val picked = if (line.choiceIds.isEmpty() && line.optionSummary.isNotBlank()) {
+                line.optionSummary.split(" | ").mapNotNull { n -> item.optionGroups.firstNotNullOfOrNull { g -> g.choices.firstOrNull { it.name == n.trim() }?.id } }
+            } else {
+                line.choiceIds
+            }
+            val ids = OptionRules.normalizeChoiceIds(item, picked).ids
             lines += ReorderLine(item, ids, line.qty.coerceIn(1, com.ormo.domain.rules.MAX_LINE_QTY), OptionRules.effectiveSoldOut(item))
         }
         return ReorderPlan(lines, missing)
