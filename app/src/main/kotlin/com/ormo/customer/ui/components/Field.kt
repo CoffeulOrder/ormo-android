@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -150,7 +151,7 @@ fun OrmoField(
                         if (onSuffixClick != null) {
                             // 도메인 선택: 눌리는 영역을 48dp 이상으로
                             Box(
-                                Modifier.heightIn(min = 48.dp).clickable(role = Role.Button, onClickLabel = "학교 메일 주소 선택", onClick = onSuffixClick),
+                                Modifier.heightIn(min = 48.dp).focusProperties { canFocus = false }.clickable(role = Role.Button, onClickLabel = "학교 메일 주소 선택", onClick = onSuffixClick),
                                 contentAlignment = Alignment.Center,
                             ) { suffixText() }
                         } else {
@@ -160,7 +161,7 @@ fun OrmoField(
                     val showClear = clearable && focused && value.isNotEmpty() && suffix == null && trailing == null && enabled
                     if (showClear) {
                         Box(
-                            Modifier.size(48.dp).clickable(role = Role.Button, onClickLabel = "입력 지우기") { onValueChange("") },
+                            Modifier.size(48.dp).focusProperties { canFocus = false }.clickable(role = Role.Button, onClickLabel = "입력 지우기") { onValueChange("") },
                             contentAlignment = Alignment.Center,
                         ) {
                             Icon(OrmoIcons.ClearCircle, contentDescription = null, tint = c.iconTertiary, modifier = Modifier.size(Size.iconLg))
@@ -170,7 +171,7 @@ fun OrmoField(
                         Box(
                             Modifier
                                 .size(48.dp)
-                                .then(if (onSuffixClick != null) Modifier.clickable(role = Role.Button, onClickLabel = "학교 메일 주소 선택", onClick = onSuffixClick) else Modifier),
+                                .then(if (onSuffixClick != null) Modifier.focusProperties { canFocus = false }.clickable(role = Role.Button, onClickLabel = "학교 메일 주소 선택", onClick = onSuffixClick) else Modifier),
                             contentAlignment = Alignment.Center,
                         ) { trailing() }
                     }
@@ -227,7 +228,7 @@ fun OrmoPasswordField(
             Box(
                 Modifier
                     .size(48.dp)
-                    .clickable(role = Role.Button, onClickLabel = if (visible) "비밀번호 숨기기" else "비밀번호 표시") { visible = !visible }
+                    .focusProperties { canFocus = false }.clickable(role = Role.Button, onClickLabel = if (visible) "비밀번호 숨기기" else "비밀번호 표시") { visible = !visible }
                     .semantics { stateDescription = if (visible) "비밀번호가 보이는 중" else "비밀번호가 가려진 중" },
                 contentAlignment = Alignment.Center,
             ) {

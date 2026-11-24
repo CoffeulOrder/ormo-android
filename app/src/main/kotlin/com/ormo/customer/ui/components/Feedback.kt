@@ -29,6 +29,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.ormo.customer.ui.theme.topInset
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -64,11 +67,17 @@ object SnackbarDurations {
     const val PASSWORD_CHANGED = 2_000L
 }
 
+/** 스낵바 앞의 24 원형 아이콘: 성공은 초록 체크, 오류는 빨간 느낌표 (Figma) */
+enum class SnackbarKind { Success, Error }
+
 class SnackbarMessage(
     val text: String,
     val durationMs: Long,
     val actionLabel: String? = null,
     val onAction: (() -> Unit)? = null,
+    val kind: SnackbarKind = SnackbarKind.Success,
+    /** true 면 화면 위(상태 표시줄 아래 4)에 뜬다 — 로그인 실패·잠금 토스트 (Figma 0.1.2) */
+    val atTop: Boolean = false,
 )
 
 /**
@@ -79,8 +88,15 @@ class OrmoSnackbarState {
     var current by mutableStateOf<SnackbarMessage?>(null)
         private set
 
-    fun show(text: String, durationMs: Long, actionLabel: String? = null, onAction: (() -> Unit)? = null) {
-        current = SnackbarMessage(text, durationMs, actionLabel, onAction)
+    fun show(
+        text: String,
+        durationMs: Long,
+        actionLabel: String? = null,
+        kind: SnackbarKind = SnackbarKind.Success,
+        atTop: Boolean = false,
+        onAction: (() -> Unit)? = null,
+    ) {
+        current = SnackbarMessage(text, durationMs, actionLabel, onAction, kind, atTop)
     }
 
     fun dismiss(message: SnackbarMessage? = current) {
@@ -99,11 +115,12 @@ fun OrmoSnackbarHost(
     modifier: Modifier = Modifier,
     bottomOffset: Dp = Space.s16,
 ) {
-    val msg = state.current
-    LaunchedEffect(msg) {
-        if (msg != null) {
-            delay(msg.durationMs)
-            state.dismiss(msg)
+    val msg = state.current?.takeUnless { it.atTop } // 위쪽 토스트는 OrmoTopToastHost 가 그린다
+    LaunchedEffect(state.current) {
+        val m = state.current
+        if (m != null) {
+            delay(m.durationMs)
+            state.dismiss(m)
         }
     }
     Box(modifier.fillMaxWidth().padding(horizontal = Space.s16).padding(bottom = bottomOffset), contentAlignment = Alignment.BottomCenter) {
@@ -114,26 +131,55 @@ fun OrmoSnackbarHost(
         ) {
             // 사라지는 동안에도 마지막 문구를 그린다
             val shown = remember(msg) { msg }
-            if (shown != null) SnackbarSurface(shown, onDismiss = { state.dismiss(shown) })
+            if (shown != null) SnackbarSurface(shown, onDismiss = { state.dismiss(shown) }, hug = true)
+        }
+    }
+}
+
+/** 화면 위쪽 토스트 자리 (Figma: 알약, 가운데, 위에서 상태 표시줄 아래 4). 화면 맨 위 Box 안에서 호출한다. */
+@Composable
+fun OrmoTopToastHost(state: OrmoSnackbarState, modifier: Modifier = Modifier) {
+    val msg = state.current?.takeIf { it.atTop }
+    Box(modifier.fillMaxWidth().padding(top = topInset() + 4.dp), contentAlignment = Alignment.TopCenter) {
+        AnimatedVisibility(
+            visible = msg != null,
+            enter = fadeIn(tween(150)) + slideInVertically(tween(150)) { -it / 2 },
+            exit = fadeOut(tween(150)) + slideOutVertically(tween(150)) { -it / 2 },
+        ) {
+            val shown = remember(msg) { msg }
+            if (shown != null) SnackbarSurface(shown, onDismiss = { state.dismiss(shown) }, hug = true)
         }
     }
 }
 
 @Composable
-private fun SnackbarSurface(msg: SnackbarMessage, onDismiss: () -> Unit) {
+private fun SnackbarSurface(msg: SnackbarMessage, onDismiss: () -> Unit, hug: Boolean = false) {
     val c = Ormo.colors
+    // Figma: 알약(반경 full) · 앞에 24 원형 아이콘 · 글자 흰색. 위쪽 토스트는 글자 폭에 맞추고, 아래쪽은 좌우 16 여백 안에서 넓게.
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(percent = 50)
     Row(
-        Modifier
-            .fillMaxWidth()
+        (if (hug) Modifier else Modifier.fillMaxWidth())
             .heightIn(min = 48.dp)
-            .ormoShadow(shadowSmall(c), Shapes.control48)
-            .clip(Shapes.control48)
+            .ormoShadow(shadowSmall(c), shape)
+            .clip(shape)
             .background(c.fillNeutral)
-            .padding(horizontal = Space.s16, vertical = Space.s12)
+            .padding(start = Space.s12, end = Space.s24, top = Space.s12, bottom = Space.s12)
             .semantics { liveRegion = LiveRegionMode.Polite },
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Space.s8),
     ) {
-        Text(msg.text, style = OrmoType.bodySmMedium, color = c.textOnFill, modifier = Modifier.weight(1f))
+        Box(
+            Modifier.size(24.dp).clip(androidx.compose.foundation.shape.CircleShape).background(if (msg.kind == SnackbarKind.Error) c.fillDanger else c.fillSuccess),
+            contentAlignment = Alignment.Center,
+        ) {
+            androidx.compose.material3.Icon(
+                if (msg.kind == SnackbarKind.Error) OrmoIcons.Alert else OrmoIcons.Check,
+                contentDescription = null,
+                tint = c.textOnFill,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+        Text(msg.text, style = OrmoType.bodyMdMedium, color = c.textOnFill, modifier = if (hug) Modifier else Modifier.weight(1f))
         if (msg.actionLabel != null) {
             Text(
                 msg.actionLabel,

@@ -26,6 +26,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.offset
 import com.ormo.customer.ui.theme.topInset
 import com.ormo.customer.ui.auth.OrmoMark
@@ -118,18 +122,7 @@ fun OrderCompleteScreen(vm: OrderCompleteViewModel, onStatus: (orderId: String) 
                 Modifier.weight(1f).fillMaxWidth().padding(horizontal = Space.pageMargin).padding(top = topInset() + 67.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                // 심볼(컵·김) + 오른쪽 아래 초록 체크 배지 (Figma: 배지 지름 36 + 흰 테두리 3, 중심은 심볼 상자의 (79.5, 109.5))
-                Box(Modifier.size(100.54.dp, 128.dp)) {
-                    OrmoMark()
-                    Box(
-                        Modifier.offset(x = (79.5 - 21).dp, y = (109.5 - 21).dp).size(42.dp).clip(CircleShape).background(c.bgDefault),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Box(Modifier.size(36.dp).clip(CircleShape).background(c.fillSuccess), contentAlignment = Alignment.Center) {
-                            Icon(com.ormo.customer.ui.components.OrmoIcons.Check, null, tint = c.textOnFill, modifier = Modifier.size(24.dp))
-                        }
-                    }
-                }
+                OrmoMark(badge = com.ormo.customer.ui.auth.MarkBadge.Success)
                 Text("픽업 번호", style = OrmoType.bodyXlRegular, color = c.textSecondary, modifier = Modifier.padding(top = 38.dp))
                 Text(order?.pickupNumber?.toString() ?: "-", style = OrmoType.display2xlSemibold, color = c.textPrimary)
                 if (order != null) {
@@ -154,10 +147,12 @@ fun OrderCompleteScreen(vm: OrderCompleteViewModel, onStatus: (orderId: String) 
 
     if (showSheet) {
         // 4.5.1 알림 권한 안내: [다음에] / [알림 받기]
+        // Figma 4.5.1: 시트 위에서 제목 글자 +40, 안내 +74(제목과 6 간격), 종 +148(64), 버튼 +226, 아래 34
         OrmoBottomSheet(
             onDismissRequest = { showSheet = false },
-            title = NotificationPromptRules.TITLE,
-            headerAlign = SheetHeaderAlign.Center,
+            contentVerticalPadding = 0.dp,
+            footerTopPadding = 14.dp,
+            footerBottomPadding = 34.dp,
             footer = {
                 Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                     OrmoButton("다음에", { showSheet = false; vm.recordDismiss(); onStatus(orderId) }, Modifier.weight(1f), kind = ButtonKind.WeakNeutral, size = ButtonSize.XL)
@@ -168,12 +163,19 @@ fun OrderCompleteScreen(vm: OrderCompleteViewModel, onStatus: (orderId: String) 
                 }
             },
         ) {
-            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Space.s24)) {
-                Text(NotificationPromptRules.BODY, style = OrmoType.bodyMdRegular, color = c.textSecondary, textAlign = TextAlign.Center)
-                Box(Modifier.size(64.dp).clip(CircleShape).background(c.fillBrandWeak), contentAlignment = Alignment.Center) {
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                Spacer(Modifier.height(15.dp))
+                Text(
+                    NotificationPromptRules.TITLE,
+                    style = OrmoType.bodyXlBold,
+                    color = c.textStrong,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.semantics { heading() },
+                )
+                Text(NotificationPromptRules.BODY, style = OrmoType.bodyMdRegular, color = c.textSecondary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp))
+                Box(Modifier.padding(top = 50.dp).size(64.dp).clip(CircleShape).background(c.fillBrandWeak), contentAlignment = Alignment.Center) {
                     Icon(OrmoIcons.Bell, null, tint = c.iconBrand, modifier = Modifier.size(32.dp))
                 }
-                Box(Modifier.size(Space.s4))
             }
         }
     }

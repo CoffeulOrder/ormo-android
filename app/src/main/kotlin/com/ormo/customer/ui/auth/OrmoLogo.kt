@@ -2,6 +2,8 @@ package com.ormo.customer.ui.auth
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
@@ -104,19 +106,58 @@ private fun LogoLayer(res: Int, x: Float, y: Float, w: Float, h: Float, s: LogoL
  * ORMO 심볼 (컵 + 김 2개, 워드마크 없음). Figma `ORMO Symbol`: 상자 100.54×128 안에 레이어를 비율로 배치한다.
  * 크기는 [width] 로 정하고 높이는 비율(128/100.54)을 따른다. 가입 완료·주문 완료 화면에 쓴다.
  */
+enum class MarkBadge { None, Success, Danger, Neutral }
+
 @Composable
-fun OrmoMark(modifier: Modifier = Modifier, width: Dp = 100.54.dp, state: LogoMotionState = LogoMotion.FINAL) {
+fun OrmoMark(
+    modifier: Modifier = Modifier,
+    width: Dp = 100.54.dp,
+    state: LogoMotionState = LogoMotion.FINAL,
+    /** 컵 색을 바꾼다 (결제 만료: 짙은 남색, 김 없음) */
+    cupTint: androidx.compose.ui.graphics.Color? = null,
+    showSteam: Boolean = true,
+    badge: MarkBadge = MarkBadge.None,
+) {
     val height = width * (128f / 100.54f)
     Box(modifier.size(width, height)) {
-        MarkLayer(R.drawable.ormo_logo_cup, width, height, left = 0.0155f, top = 0.3152f, right = 0.0156f, bottom = 0.0121f, s = state.cup)
-        MarkLayer(R.drawable.ormo_logo_steam_l, width, height, left = 0.3528f, top = 0.1028f, right = 0.4486f, bottom = 0.6886f, s = state.steamLeft)
-        MarkLayer(R.drawable.ormo_logo_steam_r, width, height, left = 0.5718f, top = 0.0123f, right = 0.1679f, bottom = 0.7019f, s = state.steamRight)
+        MarkLayer(R.drawable.ormo_logo_cup, width, height, left = 0.0155f, top = 0.3152f, right = 0.0156f, bottom = 0.0121f, s = state.cup, tint = cupTint)
+        if (showSteam) {
+            MarkLayer(R.drawable.ormo_logo_steam_l, width, height, left = 0.3528f, top = 0.1028f, right = 0.4486f, bottom = 0.6886f, s = state.steamLeft)
+            MarkLayer(R.drawable.ormo_logo_steam_r, width, height, left = 0.5718f, top = 0.0123f, right = 0.1679f, bottom = 0.7019f, s = state.steamRight)
+        }
+        if (badge != MarkBadge.None) MarkBadgeView(badge, Modifier.offset(width * (62f / 100.54f), height * (92f / 128f)))
+    }
+}
+
+/** 심볼 오른쪽 아래 배지: 지름 36 + 흰 테두리 3, 안에 20 아이콘 (Figma: 성공 초록 체크 · 실패 빨간 ✕ · 만료 회색 시계) */
+@Composable
+private fun MarkBadgeView(kind: MarkBadge, modifier: Modifier = Modifier) {
+    val c = com.ormo.customer.ui.theme.Ormo.colors
+    val bg = when (kind) { MarkBadge.Success -> c.fillSuccess; MarkBadge.Danger -> c.fillDanger; else -> c.fillNeutral }
+    Box(
+        modifier.size(42.dp).clip(androidx.compose.foundation.shape.CircleShape).background(c.bgDefault),
+        contentAlignment = androidx.compose.ui.Alignment.Center,
+    ) {
+        Box(Modifier.size(36.dp).clip(androidx.compose.foundation.shape.CircleShape).background(bg), contentAlignment = androidx.compose.ui.Alignment.Center) {
+            when (kind) {
+                MarkBadge.Success -> androidx.compose.material3.Icon(com.ormo.customer.ui.components.OrmoIcons.Check, null, tint = c.textOnFill, modifier = Modifier.size(24.dp))
+                MarkBadge.Danger -> androidx.compose.material3.Icon(com.ormo.customer.ui.components.OrmoIcons.Close, null, tint = c.textOnFill, modifier = Modifier.size(20.dp))
+                else -> androidx.compose.foundation.Canvas(Modifier.size(20.dp)) {
+                    val w = size.width
+                    drawCircle(c.textOnFill, radius = w * 0.45f, style = androidx.compose.ui.graphics.drawscope.Stroke(width = w * 0.12f))
+                    val ctr = androidx.compose.ui.geometry.Offset(w / 2, w / 2)
+                    drawLine(c.textOnFill, ctr, androidx.compose.ui.geometry.Offset(w / 2, w * 0.25f), strokeWidth = w * 0.1f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                    drawLine(c.textOnFill, ctr, androidx.compose.ui.geometry.Offset(w * 0.68f, w * 0.6f), strokeWidth = w * 0.1f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                }
+            }
+        }
     }
 }
 
 @Composable
-private fun MarkLayer(res: Int, w: Dp, h: Dp, left: Float, top: Float, right: Float, bottom: Float, s: LogoLayerState) {
+private fun MarkLayer(res: Int, w: Dp, h: Dp, left: Float, top: Float, right: Float, bottom: Float, s: LogoLayerState, tint: androidx.compose.ui.graphics.Color? = null) {
     Image(
+        colorFilter = tint?.let { androidx.compose.ui.graphics.ColorFilter.tint(it) },
         painter = painterResource(res),
         contentDescription = null,
         modifier = Modifier

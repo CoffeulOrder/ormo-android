@@ -21,6 +21,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material3.Icon
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.semantics
@@ -287,19 +289,32 @@ private fun DetailHeader(order: Order, view: OrderDetailView) {
     // Figma 4.3.1: 제목 글자 y=130(내비 아래 24) · 메타(16 Regular) 제목 아래 8 · 아래 24 → 단계 막대 y=218
     Column(Modifier.fillMaxWidth().padding(start = Space.pageMargin, end = Space.pageMargin, top = 24.dp), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         // 상태가 바뀌면(5초마다 새로고침) TalkBack 이 새 문구를 읽어 준다
-        Text(view.headline, style = OrmoType.displayXsSemibold, color = c.textPrimary, modifier = Modifier.semantics { heading(); liveRegion = LiveRegionMode.Polite })
+        Text(view.headline.replace("매장 사정으로 ", "매장 사정으로\n"), style = OrmoType.displayXsSemibold, color = c.textPrimary, modifier = Modifier.semantics { heading(); liveRegion = LiveRegionMode.Polite })
         Text("${order.storeName} · ${TimeFormat.dateDowClock(order.placedAt)}", style = OrmoType.bodyMdRegular, color = c.textSecondary)
     }
-    Column(Modifier.fillMaxWidth().padding(horizontal = Space.pageMargin).padding(top = 24.dp), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
-        view.bigPickupNumber?.let {
-            Text(it.toString(), style = OrmoType.display2xlSemibold, color = c.textBrand, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-        }
-        view.deadlineBox?.let { Notice(it, brand = true) }
-        view.reasonBox?.let { Notice(it, danger = true) }
-        view.infoBox?.let { Notice(it) }
+    Column(Modifier.fillMaxWidth().padding(horizontal = Space.pageMargin).padding(top = 24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        // Figma 4.3.x 에는 큰 픽업 번호와 '○○:○○까지 받아주세요' 상자가 없다 (제목에 번호가 이미 있음) → 표시하지 않는다.
+        // 값(view.bigPickupNumber · view.deadlineBox)은 규칙에 그대로 있다 — 다시 보이려면 여기만 되살리면 된다.
+        // Figma: 매장 취소·거절 화면에는 사유 상자도 안내 상자도 없다. 그 밖의 안내는 회색 상자에 ⓘ 아이콘 + 14.
+        // (사유 view.reasonBox 는 규칙에 남아 있다 — 되살리려면 여기에 Notice(it, danger = true))
+        if (view.reasonBox == null) view.infoBox?.let { InfoNotice(it) }
         view.steps?.let { StepBar(it) }
     }
     Spacer(Modifier.height(Space.s24))
+}
+
+/** 안내 상자 (Figma 4.3.5~): 연한 회색 라운드 + ⓘ 16 + 14 Medium 글자 */
+@Composable
+private fun InfoNotice(text: String) {
+    val c = Ormo.colors
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.fillNeutralWeak).padding(horizontal = Space.s16, vertical = Space.s12),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Space.s12),
+    ) {
+        Icon(com.ormo.customer.ui.components.FigmaIcons.Info, null, tint = c.iconSecondary, modifier = Modifier.size(20.dp))
+        Text(text, style = OrmoType.bodySmMedium, color = c.textSecondary, modifier = Modifier.weight(1f))
+    }
 }
 
 @Composable

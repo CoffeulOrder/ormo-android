@@ -14,6 +14,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
@@ -87,7 +91,18 @@ fun CodeStep(
         onBack = onBack,
         snackbar = snackbar,
         bottom = if (showResendButton) {
-            { OrmoButton("인증코드 다시 받기", onResend, Modifier.fillMaxWidth(), size = ButtonSize.XL, loading = sending) }
+            {
+                // Figma: 잠김·만료일 때는 큰 버튼 대신 키보드 위 가운데의 밑줄 링크
+                Box(Modifier.fillMaxWidth().padding(bottom = Space.s8), contentAlignment = Alignment.Center) {
+                    Text(
+                        "인증코드 다시 받기",
+                        style = OrmoType.bodyMdRegular,
+                        color = c.textBrand,
+                        textDecoration = TextDecoration.Underline,
+                        modifier = Modifier.clickable(enabled = !sending, role = Role.Button, onClick = onResend).padding(vertical = Space.s4),
+                    )
+                }
+            }
         } else if (v != null) {
             {
                 // Figma 0.2.2: 키보드 위 가운데에 밑줄 글씨 '0:59 후 다시 받을 수 있어요' → 0:00 에 '메일이 오지 않나요?'
@@ -111,22 +126,26 @@ fun CodeStep(
         },
     ) {
         // 제목 아래 남은 시간 (이메일 주소 줄은 Figma 에 없음)
-        if (v != null && !v.isExpired(now) && v.phase != VerificationPhase.LOCKED) {
+        if (v != null && v.isExpired(now)) {
+            Text("입력 시간이 만료됐어요", style = OrmoType.bodyMdRegular, color = c.textDanger, modifier = Modifier.padding(bottom = 6.dp))
+        } else if (v != null) {
             Text("남은 시간 ${formatCountdown(v.remainingSeconds(now))}", style = OrmoType.bodyMdRegular, color = c.textSecondary, modifier = Modifier.padding(bottom = 6.dp))
         } else {
             Text(email, style = OrmoType.bodyMdRegular, color = c.textSecondary, modifier = Modifier.padding(bottom = 6.dp))
         }
-        OrmoCodeInput(
-            value = v?.code.orEmpty(),
-            onValueChange = onCodeChanged,
-            enabled = enabled,
-            invalid = message == VerificationMessage.MISMATCH || message == VerificationMessage.EXPIRED,
-        )
-        when (message) {
-            VerificationMessage.MISMATCH -> Text("인증코드가 일치하지 않아요", style = OrmoType.bodySmMedium, color = c.textDanger)
-            VerificationMessage.TOO_MANY_WRONG -> Text("코드를 5번 잘못 입력해 사용이 제한됐어요", style = OrmoType.bodySmMedium, color = c.textDanger)
-            VerificationMessage.EXPIRED -> Text("입력 시간이 만료됐어요", style = OrmoType.bodySmMedium, color = c.textDanger)
-            null -> Unit
+        // Figma: 칸 아래 오류는 8 간격
+        Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+            OrmoCodeInput(
+                value = v?.code.orEmpty(),
+                onValueChange = onCodeChanged,
+                enabled = enabled,
+                invalid = message == VerificationMessage.MISMATCH,
+            )
+            when (message) {
+                VerificationMessage.MISMATCH -> CodeError("인증코드가 일치하지 않아요")
+                VerificationMessage.TOO_MANY_WRONG -> CodeError("코드를 5번 잘못 입력해 사용이 제한됐어요")
+                VerificationMessage.EXPIRED, null -> Unit // 만료 문구는 위 안내 줄에 빨갛게
+            }
         }
     }
 }
@@ -203,5 +222,15 @@ fun NewPasswordStep(
         if (!name.isNullOrEmpty()) {
             OrmoField(value = name, onValueChange = {}, label = "이름", enabled = false, clearable = false)
         }
+    }
+}
+
+/** 인증코드 칸 아래 오류: 경고 아이콘 16 + 14 Medium 빨강 (입력칸 오류와 같은 모양) */
+@Composable
+private fun CodeError(text: String) {
+    val c = Ormo.colors
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
+        androidx.compose.material3.Icon(com.ormo.customer.ui.components.OrmoIcons.Alert, contentDescription = null, tint = c.iconDanger, modifier = Modifier.size(16.dp))
+        Text(text, style = OrmoType.bodySmMedium, color = c.textDanger, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
     }
 }

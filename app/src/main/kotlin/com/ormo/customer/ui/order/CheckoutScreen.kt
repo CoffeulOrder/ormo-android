@@ -30,6 +30,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.ormo.customer.ui.components.Cart
+import com.ormo.customer.ui.auth.MarkBadge
+import com.ormo.customer.ui.auth.OrmoMark
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.draw.alpha
@@ -157,6 +160,7 @@ fun CheckoutScreen(
                 title = PaymentMessages.EXPIRED.title,
                 body = PaymentMessages.EXPIRED.body,
                 primary = "다시 주문하기" to vm::leaveTerminal,
+                expired = true,
             )
             else -> CheckoutContent(
                 checkout = checkout,
@@ -216,14 +220,16 @@ private fun CheckoutContent(
     Column(Modifier.fillMaxSize()) {
         OrmoTopNav(title = "장바구니", onBack = onBack)
         if (checkout.isEmpty) {
-            // 2.3.2 빈 상태
+            // 2.3.2 빈 상태 (Figma: 회색 원 60 + 장바구니 아이콘 y=268, 제목 16, 파란 [메뉴 보기] M)
             Column(
-                Modifier.weight(1f).fillMaxWidth().padding(Space.pageMargin),
-                verticalArrangement = Arrangement.spacedBy(Space.s8, Alignment.CenterVertically),
+                Modifier.weight(1f).fillMaxWidth().padding(horizontal = Space.pageMargin).padding(top = 268.dp - 106.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text("장바구니가 비어 있어요", style = OrmoType.bodyXlBold, color = c.textPrimary, modifier = Modifier.semantics { heading() })
-                OrmoButton("메뉴 보기", onViewMenu, Modifier.padding(top = Space.s16), kind = ButtonKind.WeakNeutral, size = ButtonSize.M)
+                Box(Modifier.size(60.dp).clip(androidx.compose.foundation.shape.CircleShape).background(c.bgLower), contentAlignment = Alignment.Center) {
+                    Icon(OrmoIcons.Cart, null, tint = c.iconTertiary, modifier = Modifier.size(32.dp))
+                }
+                Text("장바구니가 비어 있어요", style = OrmoType.bodyLgSemibold, color = c.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 16.dp).semantics { heading() })
+                OrmoButton("메뉴 보기", onViewMenu, Modifier.padding(top = 20.dp), size = ButtonSize.M)
             }
             return@Column
         }
@@ -339,51 +345,81 @@ private fun LineRow(line: CartLine, soldOut: Boolean, amount: Int, onQty: (Int) 
     }
 }
 
+/**
+ * 결제 확인·결과 화면 공통 (Figma 3.2.2 / 3.3.1 / 3.3.2): 심볼 상자가 (137,233), 제목 글자는 y=421, 본문 24 줄간격 12 아래.
+ * 확인 중 = 심볼만, 실패 = 빨간 ✕ 배지, 만료 = 짙은 남색 컵(김 없음) + 회색 시계 배지.
+ */
+@Composable
+private fun StatusScreen(
+    title: String,
+    body: String,
+    mark: @Composable () -> Unit,
+    extra: @Composable () -> Unit = {},
+    bottom: (@Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit)? = null,
+) {
+    val c = Ormo.colors
+    Column(Modifier.fillMaxSize().background(c.bgDefault)) {
+        Column(
+            Modifier.weight(1f).fillMaxWidth().padding(horizontal = Space.pageMargin).padding(top = 233.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            mark()
+            Text(title, style = OrmoType.displayXsSemibold, color = c.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 55.dp).semantics { heading() })
+            Text(body, style = OrmoType.bodyMdMedium, color = c.textSecondary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 12.dp))
+            extra()
+        }
+        if (bottom != null) BottomCta(content = bottom)
+    }
+}
+
 /** 결제 확인 중 (3.2.2): 뒤로가기 막음. 서버가 확정할 때까지. 확인이 계속 안 되면 [다시 확인] / [주문서로 나가기](주문은 유지). */
 @Composable
 private fun ConfirmingScreen(checkFailed: Boolean, onRecheck: () -> Unit, onGiveUp: () -> Unit) {
     val c = Ormo.colors
-    Column(Modifier.fillMaxSize().background(c.bgDefault)) {
-        Column(
-            Modifier.weight(1f).fillMaxWidth().padding(Space.pageMargin),
-            verticalArrangement = Arrangement.spacedBy(Space.s8, Alignment.CenterVertically),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            if (!checkFailed) CircularProgressIndicator(color = c.fillBrand, modifier = Modifier.size(40.dp))
-            Text(PaymentMessages.CONFIRMING.title, style = OrmoType.displayXsSemibold, color = c.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.semantics { heading() }.padding(top = Space.s16))
-            Text(PaymentMessages.CONFIRMING.body, style = OrmoType.bodyMdRegular, color = c.textSecondary, textAlign = TextAlign.Center)
+    StatusScreen(
+        title = PaymentMessages.CONFIRMING.title,
+        body = PaymentMessages.CONFIRMING.body,
+        mark = { OrmoMark() },
+        extra = {
             if (checkFailed) {
                 // TODO(spec 3.2.2): 명세는 뒤로가기 막음뿐이라 갇히지 않게 하는 안내·탈출구는 가정
                 Text("확인이 조금 늦어지고 있어요", style = OrmoType.bodyMdMedium, color = c.textTertiary, modifier = Modifier.padding(top = Space.s16))
             }
-        }
-        if (checkFailed) {
-            BottomCta {
+        },
+        bottom = if (checkFailed) {
+            {
                 OrmoButton("다시 확인", onRecheck, Modifier.fillMaxWidth(), size = ButtonSize.XL)
                 OrmoButton("주문서로 나가기", onGiveUp, Modifier.fillMaxWidth(), kind = ButtonKind.Ghost)
             }
-        }
-    }
+        } else {
+            null
+        },
+    )
 }
 
-/** 결제 실패(3.3.1) / 5번 초과(3.3.1) / 만료(3.3.2) 공통 결과 화면: 제목 + 본문 + 버튼 1~2개 */
+/** 결제 실패(3.3.1) / 5번 초과(3.3.1) / 만료(3.3.2) 공통 결과 화면: 심볼 + 제목 + 본문 + 버튼 1~2개 */
 @Composable
-private fun ResultScreen(title: String, body: String, primary: Pair<String, () -> Unit>, secondary: Pair<String, () -> Unit>? = null) {
+private fun ResultScreen(
+    title: String,
+    body: String,
+    primary: Pair<String, () -> Unit>,
+    secondary: Pair<String, () -> Unit>? = null,
+    expired: Boolean = false,
+) {
     val c = Ormo.colors
-    Column(Modifier.fillMaxSize().background(c.bgDefault)) {
-        Column(
-            Modifier.weight(1f).fillMaxWidth().padding(Space.pageMargin),
-            verticalArrangement = Arrangement.spacedBy(Space.s8, Alignment.CenterVertically),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(title, style = OrmoType.displayXsSemibold, color = c.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.semantics { heading() })
-            Text(body, style = OrmoType.bodyMdRegular, color = c.textSecondary, textAlign = TextAlign.Center)
-        }
-        BottomCta {
+    StatusScreen(
+        title = title,
+        body = body,
+        mark = {
+            if (expired) OrmoMark(cupTint = androidx.compose.ui.graphics.Color(0xFF001936), showSteam = false, badge = MarkBadge.Neutral)
+            else OrmoMark(badge = MarkBadge.Danger)
+        },
+        bottom = {
             OrmoButton(primary.first, primary.second, Modifier.fillMaxWidth(), size = ButtonSize.XL)
-            if (secondary != null) OrmoButton(secondary.first, secondary.second, Modifier.fillMaxWidth(), kind = ButtonKind.Ghost)
-        }
-    }
+            // Figma: 보조 버튼은 연한 파랑 채움 (결제수단 변경하기)
+            if (secondary != null) OrmoButton(secondary.first, secondary.second, Modifier.fillMaxWidth(), kind = ButtonKind.WeakBrand, size = ButtonSize.XL)
+        },
+    )
 }
 
 /** 가짜 PG 결제창 (시험용). 시험하는 사람이 결과를 고른다. */

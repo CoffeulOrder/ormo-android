@@ -76,6 +76,7 @@ fun FormScreen(
             if (bottom != null) BottomCta(bottomPadding = bottomPadding, content = bottom) else Box(Modifier.ormoNavigationBarsPadding())
         }
         if (snackbar != null) {
+            OrmoTopToastHost(snackbar, Modifier.align(Alignment.TopCenter))
             OrmoSnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).imePadding().ormoNavigationBarsPadding(), bottomOffset = 140.dp)
         }
     }

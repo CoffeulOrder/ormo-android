@@ -73,7 +73,7 @@ fun LoginScreen(
         vm.eventFlow.collect { e ->
             when (e) {
                 LoginEvent.LoggedIn -> onLoggedIn()
-                is LoginEvent.Snackbar -> snackbar.show(e.message, SnackbarDurations.PARTIAL_FAILURE)
+                is LoginEvent.Snackbar -> snackbar.show(e.message, SnackbarDurations.PARTIAL_FAILURE, kind = com.ormo.customer.ui.components.SnackbarKind.Error, atTop = true)
             }
         }
     }
@@ -88,7 +88,8 @@ fun LoginScreen(
 
     val lockLabel = form.lockCountdownLabel(now)
     val canSubmit = form.canSubmit(now)
-    val invalid = form.message == LoginMessage.INVALID_CREDENTIALS
+    // Figma 0.1.2: 잠긴 동안에도 두 칸이 빨갛고 오류 문구가 남는다
+    val invalid = form.message == LoginMessage.INVALID_CREDENTIALS || lockLabel != null
     val domains = ui.domains
 
     FormScreen(
@@ -140,6 +141,7 @@ fun LoginScreen(
                 value = form.password,
                 onValueChange = vm::onPasswordChanged,
                 label = "비밀번호",
+                placeholder = "비밀번호를 입력해주세요",
                 error = if (invalid) "이메일이나 비밀번호를 다시 확인해주세요" else null,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { vm.submit() }),
@@ -151,9 +153,10 @@ fun LoginScreen(
         OrmoBottomSheet(
             onDismissRequest = { showDomainSheet = false },
             title = "학교 메일 주소를 선택해주세요",
+            titleBottomPadding = 0.dp,
         ) {
             Text("학교에서 발급한 메일 주소만 사용할 수 있어요", style = OrmoType.bodyMdRegular, color = Ormo.colors.textSecondary)
-            Column(Modifier.padding(top = Space.s8, bottom = Space.s16)) {
+            Column(Modifier.padding(top = 31.dp, bottom = Space.s16)) { // Figma: 안내 글자 아래 행 시작, 행 높이 48
                 domains.items.forEach { d ->
                     Row(
                         Modifier
@@ -162,7 +165,7 @@ fun LoginScreen(
                                 vm.onDomainSelected(d.domain)
                                 showDomainSheet = false
                             }
-                            .padding(vertical = Space.s16),
+                            .padding(vertical = Space.s12),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text("@${d.domain}", style = OrmoType.bodyMdMedium, color = Ormo.colors.textPrimary, modifier = Modifier.weight(1f))

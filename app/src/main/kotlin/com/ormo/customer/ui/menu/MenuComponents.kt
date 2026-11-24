@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -60,6 +61,8 @@ fun MenuRow(
     modifier: Modifier = Modifier,
     badge: BadgeKind? = null,
     highlight: IntRange? = null,
+    /** 검색 결과 줄 (Figma 2.1.3): 위아래 16, 이름·가격·설명 사이 4 */
+    compact: Boolean = false,
     onClick: () -> Unit,
 ) {
     val c = Ormo.colors
@@ -68,7 +71,7 @@ fun MenuRow(
         modifier
             .fillMaxWidth()
             .then(if (state.tappable) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
-            .padding(Space.s20)
+            .padding(horizontal = Space.s20, vertical = if (compact) Space.s16 else Space.s20)
             .semantics {
                 contentDescription = buildString {
                     append(item.name).append(", ").append(formatWon(item.price))
@@ -79,10 +82,10 @@ fun MenuRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Space.s12),
     ) {
-        Column(Modifier.weight(1f).alpha(if (state.dimmed) 0.5f else 1f), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+        Column(Modifier.weight(1f).alpha(if (state.dimmed) 0.5f else 1f), verticalArrangement = Arrangement.spacedBy(if (compact) Space.s4 else Space.s8)) {
             Column(verticalArrangement = Arrangement.spacedBy(Space.s4)) {
                 if (badge != null) OrmoBadge(badgeLabel(badge), badge)
-                Column {
+                Column(verticalArrangement = Arrangement.spacedBy(if (compact) Space.s4 else 0.dp)) {
                     Text(name, style = OrmoType.bodyLgSemibold, color = c.textPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(formatWon(item.price), style = OrmoType.bodyMdSemibold, color = c.textPrimary, maxLines = 1)
                 }
@@ -156,17 +159,20 @@ fun CategoryTabs(sections: List<HomeSection>, selected: Int, onSelect: (Int) -> 
                         .padding(horizontal = Space.s12),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        section.title,
-                        style = if (on) OrmoType.bodyLgBold else OrmoType.bodyLgSemibold,
-                        color = if (on) c.textPrimary else c.textTertiary,
-                        maxLines = 1,
-                    )
-                    if (on) {
-                        Box(
-                            Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(2.dp)
-                                .clip(CircleShape).background(Base.Grey800),
+                    // 가로로 끝없는 목록 안이라 밑줄의 fillMaxWidth 가 0 이 되던 문제 → 글자 폭에 맞춘 상자(IntrinsicSize.Max) 안에 둔다
+                    Box(Modifier.width(androidx.compose.foundation.layout.IntrinsicSize.Max).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                        Text(
+                            section.title,
+                            style = if (on) OrmoType.bodyLgBold else OrmoType.bodyLgSemibold,
+                            color = if (on) c.textPrimary else c.textTertiary,
+                            maxLines = 1,
                         )
+                        if (on) {
+                            Box(
+                                Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(2.dp)
+                                    .clip(CircleShape).background(Base.Grey800),
+                            )
+                        }
                     }
                 }
             }

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -328,19 +329,21 @@ private fun MenuHomeTopBar(storeName: String, onStoreSelect: () -> Unit, onSearc
 }
 
 @Composable
-private fun UnavailableBox(message: String, onOtherStore: () -> Unit) {
+private fun UnavailableBox(message: String, @Suppress("UNUSED_PARAMETER") onOtherStore: () -> Unit) {
     val c = Ormo.colors
+    // Figma 2.1.2: 탭 아래 16, 높이 44 의 연한 회색 상자 — ⓘ 20 + 14 Medium 한 줄 (다른 매장은 위 매장 이름으로 바꾼다)
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = Space.pageMargin, vertical = Space.s8)
-            .clip(Shapes.control48)
+            .padding(start = Space.pageMargin, end = Space.pageMargin, top = Space.s16, bottom = Space.s16)
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
             .background(c.fillNeutralWeak)
-            .padding(start = Space.s16, top = Space.s12, bottom = Space.s12, end = Space.s8),
+            .padding(horizontal = Space.s16, vertical = Space.s12),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Space.s8),
     ) {
-        Text(message, style = OrmoType.bodyMdSemibold, color = c.textPrimary, modifier = Modifier.weight(1f))
-        OrmoButton("다른 매장 보기", onOtherStore, kind = ButtonKind.WeakBrand, size = ButtonSize.S)
+        Icon(com.ormo.customer.ui.components.FigmaIcons.Info, null, tint = c.iconSecondary, modifier = Modifier.size(20.dp))
+        Text(message, style = OrmoType.bodySmMedium, color = c.textPrimary, modifier = Modifier.weight(1f))
     }
 }
 
@@ -382,7 +385,7 @@ private fun CartBar(count: Int, total: Int, onClick: () -> Unit) {
             .fillMaxWidth()
             .background(c.bgDefault)
             .ormoNavigationBarsPadding()
-            .padding(horizontal = Space.s16, vertical = Space.s12),
+            .padding(horizontal = Space.s20, vertical = Space.s12),
     ) {
         Row(
             Modifier
@@ -395,10 +398,13 @@ private fun CartBar(count: Int, total: Int, onClick: () -> Unit) {
                 .padding(horizontal = Space.s20),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(Modifier.defaultMinSize(24.dp, 24.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(percent = 50)).background(c.textOnFill).padding(horizontal = 4.dp), contentAlignment = Alignment.Center) {
+            // Figma: '4,500원 보기' 글자 뒤에 흰 수량 원, 둘이 가운데
+            Spacer(Modifier.weight(1f))
+            Text("${formatWon(total)} 보기", style = OrmoType.bodyLgSemibold, color = c.textOnFill)
+            Box(Modifier.padding(start = Space.s8).defaultMinSize(24.dp, 24.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(percent = 50)).background(c.textOnFill).padding(horizontal = 4.dp), contentAlignment = Alignment.Center) {
                 Text(count.coerceAtMost(99).toString(), style = OrmoType.bodySmBold, color = c.textBrand)
             }
-            Text("${formatWon(total)} 보기", style = OrmoType.bodyLgSemibold, color = c.textOnFill, modifier = Modifier.weight(1f).padding(end = 24.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            Spacer(Modifier.weight(1f))
         }
     }
 }

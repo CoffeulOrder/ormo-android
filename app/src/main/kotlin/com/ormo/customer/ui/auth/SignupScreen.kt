@@ -195,15 +195,15 @@ private fun EmailStep(
 
 @Composable
 internal fun DomainSheet(domains: List<String>, selected: String?, onSelect: (String) -> Unit, onDismiss: () -> Unit) {
-    OrmoBottomSheet(onDismissRequest = onDismiss, title = "학교 메일 주소를 선택해주세요") {
+    OrmoBottomSheet(onDismissRequest = onDismiss, title = "학교 메일 주소를 선택해주세요", titleBottomPadding = 0.dp) {
         Text("학교에서 발급한 메일 주소만 사용할 수 있어요", style = OrmoType.bodyMdRegular, color = Ormo.colors.textSecondary)
-        Column(Modifier.padding(top = Space.s8, bottom = Space.s16)) {
+        Column(Modifier.padding(top = 31.dp, bottom = Space.s16)) { // Figma: 안내 글자 아래 행 시작, 행 높이 48
             domains.forEach { d ->
                 androidx.compose.foundation.layout.Row(
                     Modifier
                         .fillMaxWidth()
                         .selectable(selected = d == selected, role = androidx.compose.ui.semantics.Role.RadioButton) { onSelect(d) }
-                        .padding(vertical = Space.s16),
+                        .padding(vertical = Space.s12),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text("@$d", style = OrmoType.bodyMdMedium, color = Ormo.colors.textPrimary, modifier = Modifier.weight(1f))

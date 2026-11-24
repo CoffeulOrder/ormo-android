@@ -20,6 +20,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.heading
@@ -93,13 +94,13 @@ fun ResetScreen(
             val c = Ormo.colors
             Column(Modifier.fillMaxSize().background(c.bgDefault)) {
                 Column(
-                    Modifier.weight(1f).fillMaxWidth().padding(horizontal = Space.pageMargin),
-                    verticalArrangement = Arrangement.spacedBy(Space.s8, Alignment.CenterVertically),
+                    // Figma 0.3.3: 심볼 상자 위가 y=233, 제목 글자 y=411, 안내 y=455
+                    Modifier.weight(1f).fillMaxWidth().padding(horizontal = Space.pageMargin).padding(top = 233.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    OrmoLogo()
-                    Text("비밀번호를 변경했어요", style = OrmoType.displayXsSemibold, color = c.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.semantics { heading() }.padding(top = Space.s16))
-                    Text("새 비밀번호로 로그인해주세요", style = OrmoType.bodyMdRegular, color = c.textSecondary, textAlign = TextAlign.Center)
+                    OrmoMark()
+                    Text("비밀번호를 변경했어요", style = OrmoType.displayXsSemibold, color = c.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 44.dp).semantics { heading() })
+                    Text("새 비밀번호로 로그인해주세요", style = OrmoType.bodyMdRegular, color = c.textSecondary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 13.dp))
                 }
                 BottomCta { OrmoButton("로그인하기", { onLogin(vm.emailForLogin()) }, Modifier.fillMaxWidth(), size = ButtonSize.XL) }
             }
@@ -121,7 +122,7 @@ private fun ResetEmailStep(ui: ResetUi, snackbar: OrmoSnackbarState, vm: ResetVi
     val domains = ui.domains
     FormScreen(
         firstStep = true,
-        title = "가입한 학교 이메일을 입력해주세요",
+        title = "가입한 학교 이메일을\n입력해주세요",
         onBack = onClose,
         snackbar = snackbar,
         bottom = { OrmoButton("인증코드 받기", vm::requestCode, Modifier.fillMaxWidth(), size = ButtonSize.XL, enabled = s.canRequestCode, loading = ui.sending) },
