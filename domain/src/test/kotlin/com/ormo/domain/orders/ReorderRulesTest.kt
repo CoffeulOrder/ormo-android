@@ -88,4 +88,16 @@ class ReorderRulesTest {
         assertEquals(1, r.addedLines) // 라떼는 담김, 아메리카노(19+2)에서 멈춤
         assertEquals(20, r.cart.count)
     }
+
+    @Test fun `실서버 주문처럼 메뉴 id 와 선택지 id 가 없으면 이름으로 찾는다`() {
+        val temp = OptionGroup("g1", "온도", required = true, multi = false, choices = listOf(OptionChoice("c1", "HOT", 0), OptionChoice("c2", "ICE", 0)))
+        val shot = OptionGroup("g2", "샷", required = false, multi = true, choices = listOf(OptionChoice("c3", "샷 추가", 500)), maxSelect = 2)
+        val menu = americano.copy(optionGroups = listOf(temp, shot))
+        val realLine = OrderLine(menuId = "", name = "아메리카노", choiceIds = emptyList(), optionSummary = "ICE | 샷 추가", qty = 2, amount = 9000)
+        val plan = ReorderRules.plan(orderOf(realLine), listOf(menu))
+        assertTrue(plan.missing.isEmpty())
+        assertEquals(setOf("c2", "c3"), plan.lines.single().choiceIds.toSet())
+        // 이름이 현재 메뉴에 없으면 담을 수 없는 줄로 센다
+        assertEquals(listOf("없는 메뉴"), ReorderRules.plan(orderOf(realLine.copy(name = "없는 메뉴")), listOf(menu)).missing)
+    }
 }
