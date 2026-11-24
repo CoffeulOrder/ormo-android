@@ -175,7 +175,8 @@ fun OrderHistoryScreen(
 private fun HistoryCard(order: Order, onOpen: () -> Unit, onReorder: () -> Unit, onBrowse: () -> Unit) {
     val c = Ormo.colors
     val card = OrderHistoryRules.card(order)
-    Column(Modifier.fillMaxWidth().padding(vertical = Space.s16)) {
+    // Figma 4.2.1: 머리 글자 y=135, 이름 +36, 옵션 +30, 구분선 +33, 금액 +22, 버튼 위 291(높이 48), 카드 아래 34
+    Column(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 34.dp)) {
         Row(
             Modifier.fillMaxWidth().clickable(role = Role.Button, onClickLabel = "주문 상세", onClick = onOpen).padding(horizontal = Space.pageMargin, vertical = Space.s4),
             verticalAlignment = Alignment.CenterVertically,
@@ -183,14 +184,14 @@ private fun HistoryCard(order: Order, onOpen: () -> Unit, onReorder: () -> Unit,
             Text("${order.storeName} · ${TimeFormat.dateDow(order.placedAt)}", style = OrmoType.bodySmRegular, color = c.textSecondary, modifier = Modifier.weight(1f))
             Icon(OrmoIcons.ChevronRight, null, tint = c.iconTertiary, modifier = Modifier.size(20.dp))
         }
-        Column(Modifier.fillMaxWidth().padding(horizontal = Space.pageMargin).padding(top = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = Space.pageMargin).padding(top = 11.dp), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
             OrderLinesBlockInline(order)
         }
-        OrmoDivider(Modifier.padding(top = Space.s16), inset = true)
-        Row(Modifier.fillMaxWidth().padding(horizontal = Space.pageMargin, vertical = Space.s12), verticalAlignment = Alignment.CenterVertically) {
+        OrmoDivider(Modifier.padding(top = 17.dp), inset = true)
+        Row(Modifier.fillMaxWidth().padding(start = Space.pageMargin, end = Space.pageMargin, top = 16.dp, bottom = 13.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 card.amountLabel,
-                style = OrmoType.bodyLgSemibold,
+                style = OrmoType.bodyMdSemibold, // Figma: 16
                 color = if (card.strikeAmount) c.textTertiary else c.textPrimary,
                 textDecoration = if (card.strikeAmount) TextDecoration.LineThrough else null,
                 modifier = Modifier.weight(1f),
@@ -210,10 +211,10 @@ private fun HistoryCard(order: Order, onOpen: () -> Unit, onReorder: () -> Unit,
 private fun OrderLinesBlockInline(order: Order) {
     val c = Ormo.colors
     order.lines.forEach { l ->
-        Column(verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             Row(horizontalArrangement = Arrangement.spacedBy(Space.s4), verticalAlignment = Alignment.Bottom) {
                 Text(l.name, style = OrmoType.bodyMdSemibold, color = c.textPrimary)
-                Text("${l.qty}개", style = OrmoType.bodyMdRegular, color = c.textSecondary)
+                Text("${l.qty}개", style = OrmoType.bodySmRegular, color = c.textSecondary)
             }
             if (l.optionSummary.isNotBlank()) Text(l.optionSummary, style = OrmoType.bodySmRegular, color = c.textSecondary)
         }

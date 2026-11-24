@@ -69,15 +69,18 @@ fun rememberNowMs(active: Boolean = true): Long {
 fun CommonErrorScreen(error: CommonError, buttonLabel: String, onButton: () -> Unit, modifier: Modifier = Modifier) {
     val c = Ormo.colors
     if (error is CommonError.SessionExpired) {
-        Column(modifier.fillMaxSize().background(c.bgDefault).padding(Space.pageMargin), verticalArrangement = Arrangement.spacedBy(Space.s24)) {
-            com.ormo.customer.ui.components.SkeletonBlock(Modifier.padding(top = Space.s32).size(width = 120.dp, height = 16.dp))
-            com.ormo.customer.ui.components.SkeletonBlock(Modifier.fillMaxWidth().size(width = 335.dp, height = 48.dp), androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
-            repeat(6) {
-                Row(horizontalArrangement = Arrangement.spacedBy(Space.s12), verticalAlignment = Alignment.CenterVertically) {
-                    com.ormo.customer.ui.components.SkeletonBlock(Modifier.size(48.dp), CircleShape)
-                    Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-                        com.ormo.customer.ui.components.SkeletonBlock(Modifier.size(width = 230.dp, height = 14.dp))
-                        com.ormo.customer.ui.components.SkeletonBlock(Modifier.size(width = 100.dp, height = 10.dp))
+        // Figma 6.1.2 스켈레톤: 작은 막대 120×16 (y=74) · 넓은 상자 335×48 (y=106) · 줄 6개(48 높이, 88 간격, 시작 y=182, 좌우 안쪽 40)
+        Column(modifier.fillMaxSize().background(c.bgDefault).padding(horizontal = Space.pageMargin).padding(top = 74.dp)) {
+            com.ormo.customer.ui.components.SkeletonBlock(Modifier.size(width = 120.dp, height = 16.dp))
+            com.ormo.customer.ui.components.SkeletonBlock(Modifier.padding(top = 16.dp).fillMaxWidth().size(width = 335.dp, height = 48.dp), androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
+            Column(Modifier.padding(top = 28.dp, start = 20.dp, end = 20.dp), verticalArrangement = Arrangement.spacedBy(40.dp)) {
+                repeat(6) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(Space.s12), verticalAlignment = Alignment.CenterVertically) {
+                        com.ormo.customer.ui.components.SkeletonBlock(Modifier.size(48.dp), CircleShape)
+                        Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+                            com.ormo.customer.ui.components.SkeletonBlock(Modifier.size(width = 234.dp, height = 14.dp))
+                            com.ormo.customer.ui.components.SkeletonBlock(Modifier.size(width = 100.dp, height = 10.dp))
+                        }
                     }
                 }
             }
@@ -91,7 +94,8 @@ fun CommonErrorScreen(error: CommonError, buttonLabel: String, onButton: () -> U
         )
         return
     }
-    Column(modifier.fillMaxSize().background(c.bgDefault), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+    // Figma 6.1: 아이콘 원·글·버튼 묶음(높이 188)이 화면 세로 중앙보다 44 위에 놓인다
+    Column(modifier.fillMaxSize().background(c.bgDefault).padding(bottom = 88.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
         Column(Modifier.fillMaxWidth().padding(horizontal = Space.pageMargin), horizontalAlignment = Alignment.CenterHorizontally) {
             Box(Modifier.size(60.dp).clip(CircleShape).background(c.bgLower), contentAlignment = Alignment.Center) {
                 androidx.compose.material3.Icon(
@@ -99,7 +103,7 @@ fun CommonErrorScreen(error: CommonError, buttonLabel: String, onButton: () -> U
                     null, tint = c.iconTertiary, modifier = Modifier.size(28.dp),
                 )
             }
-            Text(error.title, style = OrmoType.bodyLgSemibold, color = c.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = Space.s16))
+            Text(error.title, style = OrmoType.bodyLgSemibold, color = c.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 18.dp))
             Text(error.body, style = OrmoType.bodyMdRegular, color = c.textSecondary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = Space.s4))
             val notice = (error as? CommonError.Maintenance)?.endsAtNotice
             if (notice != null) {

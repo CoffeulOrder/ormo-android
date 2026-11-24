@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -31,6 +32,7 @@ import com.ormo.core.Outcome
 import com.ormo.core.formatWon
 import com.ormo.customer.AppContainer
 import com.ormo.customer.ui.components.OrmoDivider
+import com.ormo.customer.ui.components.Download
 import com.ormo.customer.ui.components.OrmoIcons
 import com.ormo.customer.ui.theme.Ormo
 import com.ormo.customer.ui.theme.OrmoType
@@ -53,51 +55,64 @@ fun ReceiptScreen(container: AppContainer, orderId: String, onClose: () -> Unit)
         value = (container.stores.loadInfo(id) as? Outcome.Ok)?.value?.let { StoreInfoRules.sellerLines(it.seller) }
     }
     Column(Modifier.fillMaxSize().background(c.bgDefault)) {
-        Row(Modifier.fillMaxWidth().ormoStatusBarsPadding().height(56.dp).padding(horizontal = Space.s8), verticalAlignment = Alignment.CenterVertically) {
+        // Figma 4.3.6: 닫기(X) · '영수증' · 저장(다운로드) 아이콘
+        Row(Modifier.fillMaxWidth().ormoStatusBarsPadding().height(56.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(48.dp).clickable(role = Role.Button, onClickLabel = "닫기", onClick = onClose), contentAlignment = Alignment.Center) {
                 Icon(OrmoIcons.Close, "닫기", tint = c.iconPrimary, modifier = Modifier.size(24.dp))
             }
             Text("영수증", style = OrmoType.bodyLgSemibold, color = c.textStrong, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
-            Box(Modifier.size(48.dp))
+            // 영수증 저장은 아직 연결되지 않았다 (파일 저장 기능 필요) → 모양만 두고 누를 수 없게 한다
+            Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                Icon(OrmoIcons.Download, null, tint = c.iconSecondary, modifier = Modifier.size(24.dp))
+            }
         }
         val o = order
         if (o != null) {
+            val won = { n: Int -> n.toString().reversed().chunked(3).joinToString(",").reversed() }
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = Space.pageMargin).padding(bottom = Space.s32)) {
-                Text(o.storeName, style = OrmoType.bodyLgRegular, color = c.textSecondary, modifier = Modifier.padding(top = Space.s16))
-                Text("${o.pickupNumber?.let { "${it}번" } ?: "-"} | ${formatWon(o.totalAmount)}", style = OrmoType.displayXsSemibold, color = c.textPrimary, modifier = Modifier.padding(top = Space.s4, bottom = Space.s16))
-                Box(Modifier.fillMaxWidth().height(2.dp).background(c.textPrimary))
+                Text(o.storeName, style = OrmoType.bodyMdRegular, color = c.textSecondary, modifier = Modifier.padding(top = 22.dp))
+                Text("${o.pickupNumber?.let { "${it}번" } ?: "-"} | ${formatWon(o.totalAmount)}", style = OrmoType.displayXsSemibold, color = c.textPrimary, modifier = Modifier.padding(top = 8.dp, bottom = 24.dp))
+                Box(Modifier.fillMaxWidth().height(2.dp).background(c.textStrong))
+                // 표 머리: 메뉴명 · 단가 · 수량 · 금액
                 Row(Modifier.fillMaxWidth().padding(vertical = Space.s12)) {
-                    Text("메뉴명", style = OrmoType.bodySmMedium, color = c.textSecondary, modifier = Modifier.weight(1f))
-                    Text("수량", style = OrmoType.bodySmMedium, color = c.textSecondary, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
-                    Text("금액", style = OrmoType.bodySmMedium, color = c.textSecondary, textAlign = TextAlign.End, modifier = Modifier.width(80.dp))
+                    Text("메뉴명", style = OrmoType.bodySmRegular, color = c.textSecondary, modifier = Modifier.weight(1f))
+                    Text("단가", style = OrmoType.bodySmRegular, color = c.textSecondary, textAlign = TextAlign.End, modifier = Modifier.width(60.dp))
+                    Text("수량", style = OrmoType.bodySmRegular, color = c.textSecondary, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
+                    Text("금액", style = OrmoType.bodySmRegular, color = c.textSecondary, textAlign = TextAlign.End, modifier = Modifier.width(60.dp))
                 }
                 OrmoDivider()
-                o.lines.forEach { l ->
-                    Row(Modifier.fillMaxWidth().padding(top = Space.s16)) {
-                        Column(Modifier.weight(1f)) {
-                            Text(l.name, style = OrmoType.bodyMdSemibold, color = c.textPrimary)
+                Column(Modifier.padding(vertical = 15.dp), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
+                    o.lines.forEach { l ->
+                        Column {
+                            Row(Modifier.fillMaxWidth()) {
+                                Text(l.name, style = OrmoType.bodyMdSemibold, color = c.textPrimary, modifier = Modifier.weight(1f))
+                                // 단가 = 줄 금액 ÷ 수량 (옵션 가격 포함 — 서버가 옵션별 금액을 주면 줄을 나눈다)
+                                Text(won(if (l.qty > 0) l.amount / l.qty else l.amount), style = OrmoType.bodyMdRegular, color = c.textPrimary, textAlign = TextAlign.End, modifier = Modifier.width(60.dp))
+                                Text(l.qty.toString(), style = OrmoType.bodyMdRegular, color = c.textPrimary, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
+                                Text(won(l.amount), style = OrmoType.bodyMdRegular, color = c.textPrimary, textAlign = TextAlign.End, modifier = Modifier.width(60.dp))
+                            }
                             if (l.optionSummary.isNotBlank()) Text(l.optionSummary.replace(" | ", " / "), style = OrmoType.bodySmRegular, color = c.textSecondary)
                         }
-                        Text(l.qty.toString(), style = OrmoType.bodyMdRegular, color = c.textPrimary, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
-                        Text(l.amount.toString().reversed().chunked(3).joinToString(",").reversed(), style = OrmoType.bodyMdRegular, color = c.textPrimary, textAlign = TextAlign.End, modifier = Modifier.width(80.dp))
                     }
                 }
-                OrmoDivider(Modifier.padding(top = Space.s16))
-                Column(Modifier.padding(vertical = Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-                    ReceiptRow("주문 금액", o.totalAmount.toString().reversed().chunked(3).joinToString(",").reversed())
-                    ReceiptRow("할인 금액", "0")
-                    ReceiptRow("결제 금액", o.totalAmount.toString().reversed().chunked(3).joinToString(",").reversed(), bold = true)
+                OrmoDivider()
+                Column(Modifier.padding(vertical = Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+                    ReceiptRow("주문 금액", won(o.totalAmount), dim = true)
+                    ReceiptRow("할인 금액", "0", dim = true)
+                    Spacer(Modifier.height(12.dp))
+                    ReceiptRow("결제 금액", won(o.totalAmount), bold = true)
                 }
                 OrmoDivider()
-                Column(Modifier.padding(vertical = Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+                Column(Modifier.padding(vertical = Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
                     o.paymentMethod?.let { ReceiptRow("결제 수단", it) }
                     o.cardMasked?.let { ReceiptRow("카드 번호", it) }
                     o.approvalNumber?.let { ReceiptRow("승인 번호", it) }
                     ReceiptRow("승인 일시", TimeFormat.fullDateTime(o.placedAt))
                 }
                 OrmoDivider()
-                Column(Modifier.padding(top = Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-                    seller?.filter { it.label != "통신판매업 신고번호" }?.forEach { ReceiptRow(it.label, it.value) }
+                Column(Modifier.padding(top = Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+                    // Figma 순서: 상호 · 대표자 · 사업자등록번호 · 대표 번호 · 주소
+                    seller?.filter { it.label != "통신판매업 신고번호" }?.sortedBy { if (it.label == "주소") 1 else 0 }?.forEach { ReceiptRow(if (it.label == "연락처") "대표 번호" else it.label, it.value) }
                 }
             }
         } else {
@@ -107,10 +122,16 @@ fun ReceiptScreen(container: AppContainer, orderId: String, onClose: () -> Unit)
 }
 
 @Composable
-private fun ReceiptRow(label: String, value: String, bold: Boolean = false) {
+private fun ReceiptRow(label: String, value: String, bold: Boolean = false, dim: Boolean = false) {
     val c = Ormo.colors
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, style = if (bold) OrmoType.bodyMdSemibold else OrmoType.bodySmRegular, color = if (bold) c.textPrimary else c.textSecondary)
-        Text(value, style = if (bold) OrmoType.bodyLgBold else OrmoType.bodySmRegular, color = c.textPrimary, textAlign = TextAlign.End, modifier = Modifier.padding(start = Space.s16))
+        Text(label, style = if (bold) OrmoType.bodyMdBold else OrmoType.bodySmRegular, color = if (bold) c.textStrong else c.textSecondary)
+        Text(
+            value,
+            style = if (bold) OrmoType.bodyMdBold else OrmoType.bodySmRegular,
+            color = if (bold) c.textStrong else if (dim) c.textSecondary else c.textPrimary,
+            textAlign = TextAlign.End,
+            modifier = Modifier.padding(start = Space.s16),
+        )
     }
 }

@@ -49,6 +49,13 @@ fun OrmoBottomSheet(
     title: String? = null,
     headerAlign: SheetHeaderAlign = SheetHeaderAlign.Left,
     footer: (@Composable ColumnScope.() -> Unit)? = null,
+    /** 본문 위아래 여백 (기본 8) */
+    contentVerticalPadding: androidx.compose.ui.unit.Dp = Space.s8,
+    /** 버튼 위 간격·아래 간격 (기본 16 · 20). 시트마다 Figma 값이 달라 조절할 수 있다 */
+    footerTopPadding: androidx.compose.ui.unit.Dp = Space.s16,
+    footerBottomPadding: androidx.compose.ui.unit.Dp = 20.dp,
+    /** 제목 아래 여백 (기본 16) */
+    titleBottomPadding: androidx.compose.ui.unit.Dp = Space.s16,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val c = Ormo.colors
@@ -73,21 +80,21 @@ fun OrmoBottomSheet(
                     textAlign = if (headerAlign == SheetHeaderAlign.Center) TextAlign.Center else TextAlign.Start,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = Space.sheetMargin, vertical = Space.s16)
+                        .padding(start = Space.sheetMargin, end = Space.sheetMargin, top = Space.s16, bottom = titleBottomPadding)
                         .semantics { heading() },
                 )
             }
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = Space.sheetMargin, vertical = Space.s8),
+                    .padding(horizontal = Space.sheetMargin, vertical = contentVerticalPadding),
                 content = content,
             )
             if (footer != null) {
                 Column(
                     Modifier
                         .fillMaxWidth()
-                        .padding(start = Space.s20, end = Space.s20, top = Space.s16, bottom = 20.dp),
+                        .padding(start = Space.s20, end = Space.s20, top = footerTopPadding, bottom = footerBottomPadding),
                     verticalArrangement = Arrangement.spacedBy(Space.s8),
                     content = footer,
                 )

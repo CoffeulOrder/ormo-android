@@ -158,7 +158,7 @@ fun MenuSearchScreen(vm: MenuSearchViewModel, availability: () -> OrderAvailabil
                 is SearchView.Start -> SearchStart(v, vm, canAdd, snackbar, onOption)
                 is SearchView.Results -> LazyColumn(Modifier.weight(1f)) {
                     item {
-                        Text(v.countLabel, style = OrmoType.bodySmSemibold, color = c.textTertiary, modifier = Modifier.padding(horizontal = Space.pageMargin, vertical = Space.s8))
+                        Text(v.countLabel, style = OrmoType.bodySmSemibold, color = c.textTertiary, modifier = Modifier.padding(start = Space.pageMargin, end = Space.pageMargin, top = 18.dp, bottom = Space.s8))
                     }
                     itemsIndexed(v.hits, key = { _, h -> h.item.id }) { index, hit ->
                         val rowState = MenuHomeRules.rowState(hit.item, availability())
@@ -168,6 +168,7 @@ fun MenuSearchScreen(vm: MenuSearchViewModel, availability: () -> OrderAvailabil
                             quantity = 0,
                             badge = if (!rowState.tappable) BadgeKind.SoldOut else null,
                             highlight = hit.range,
+                            compact = true,
                             onClick = {
                                 if (rowState.canAdd && !OptionRules.hasOptions(hit.item)) snackbar.show(vm.onMenuClicked(hit.item, true), SnackbarDurations.ADDED)
                                 else { vm.remember(); onOption(hit.item.id) }
@@ -269,8 +270,9 @@ private fun SearchInput(value: String, onChange: (String) -> Unit, modifier: Mod
                     inner()
                 }
                 if (value.isNotEmpty()) {
+                    // Figma: 동그라미 없는 연한 ✕
                     Icon(
-                        OrmoIcons.ClearCircle, contentDescription = "지우기", tint = c.iconTertiary,
+                        OrmoIcons.Close, contentDescription = "지우기", tint = c.iconTertiary,
                         modifier = Modifier.size(Size.iconLg).clickable(role = Role.Button) { onChange("") },
                     )
                 }

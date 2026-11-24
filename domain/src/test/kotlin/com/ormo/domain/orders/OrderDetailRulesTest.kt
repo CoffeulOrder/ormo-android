@@ -80,7 +80,7 @@ class OrderDetailRulesTest {
         assertEquals("주문을 취소했어요", mine.headline)
         assertNull(mine.reasonBox)
         assertNull(mine.steps) // 단계 바 숨김
-        assertEquals(OrderDetailRules.REFUND_NOTICE, mine.infoBox)
+        assertEquals(OrderDetailRules.CANCELED_NOTICE, mine.infoBox)
         assertEquals(listOf(OrderAction.VIEW_RECEIPT), mine.actions)
     }
 
@@ -99,7 +99,7 @@ class OrderDetailRulesTest {
         assertEquals("환불이 필요하면 매장에 문의해주세요", v.infoBox)
         val last = v.steps!!.last()
         assertEquals("미수령", last.label)
-        assertEquals(StepState.CURRENT, last.state)
+        assertEquals(StepState.MISSED, last.state)
         assertEquals(at(30), last.time)
     }
 
@@ -110,9 +110,9 @@ class OrderDetailRulesTest {
         assertEquals(listOf(at(0), at(2), null, null), steps.map { it.time })
     }
 
-    @Test fun `픽업 완료 단계 바는 모두 완료`() {
+    @Test fun `픽업 완료 단계 바는 막대 모두 채우고 마지막 칸이 현재 단계 (Figma)`() {
         val steps = OrderDetailRules.steps(order(OrderStatus.COMPLETED, makingAt = at(2), readyAt = at(10), completedAt = at(12)))!!
-        assertTrue(steps.all { it.state == StepState.DONE })
+        assertEquals(listOf(StepState.DONE, StepState.DONE, StepState.DONE, StepState.CURRENT), steps.map { it.state })
         assertEquals(at(12), steps.last().time)
     }
 

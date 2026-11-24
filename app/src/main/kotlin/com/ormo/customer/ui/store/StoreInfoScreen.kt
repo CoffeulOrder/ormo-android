@@ -88,7 +88,8 @@ fun StoreInfoScreen(storeId: String, repo: StoreRepository, onBack: () -> Unit) 
                 if (info != null) {
                     val view = StoreInfoRules.view(info)
                     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-                        Row(Modifier.padding(horizontal = Space.s20, vertical = Space.s12), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+                        // Figma 1.2.1: 글자 시작 x=24, 매장 이름 글자 y=119
+                        Row(Modifier.padding(start = Space.s24, end = Space.s24, top = 7.dp, bottom = 17.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                             Text(store?.displayName ?: info.name, style = OrmoType.bodyXlBold, color = c.textStrong, modifier = Modifier.weight(1f, fill = false))
                             store?.let { s ->
                                 val label = StoreRules.statusLabel(s.status, LocalDateTime.now())
@@ -105,7 +106,7 @@ fun StoreInfoScreen(storeId: String, repo: StoreRepository, onBack: () -> Unit) 
                             style = OrmoType.bodySmRegular,
                             color = c.textSecondary,
                             modifier = Modifier
-                                .padding(horizontal = Space.s20, vertical = Space.s8)
+                                .padding(horizontal = Space.s24, vertical = Space.s8)
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(c.fillNeutralWeak)
@@ -121,7 +122,7 @@ fun StoreInfoScreen(storeId: String, repo: StoreRepository, onBack: () -> Unit) 
 
 @Composable
 private fun Section(title: String, content: @Composable () -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = Space.s20, vertical = Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = Space.s24, vertical = Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         Text(title, style = OrmoType.bodyLgSemibold, color = Ormo.colors.textStrong)
         content()
     }

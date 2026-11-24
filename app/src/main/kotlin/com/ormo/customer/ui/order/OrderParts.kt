@@ -40,7 +40,7 @@ fun StepBar(steps: List<StepView>, modifier: Modifier = Modifier) {
                 val color = when (s.state) {
                     StepState.DONE, StepState.CURRENT -> c.fillBrand
                     StepState.STOPPED -> c.fillDanger
-                    StepState.PENDING -> c.fillBrandWeak
+                    StepState.PENDING, StepState.MISSED -> c.fillBrandWeak
                 }
                 Box(Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(4.dp)).background(color))
             }
@@ -52,6 +52,7 @@ fun StepBar(steps: List<StepView>, modifier: Modifier = Modifier) {
                     StepState.DONE -> "완료"
                     StepState.CURRENT -> "현재 단계"
                     StepState.STOPPED -> "중단됨"
+                    StepState.MISSED -> "미수령"
                     StepState.PENDING -> "대기 중"
                 }
                 Column(
@@ -63,7 +64,7 @@ fun StepBar(steps: List<StepView>, modifier: Modifier = Modifier) {
                     Text(
                         s.label,
                         style = OrmoType.bodySmMedium,
-                        color = if (s.state == StepState.CURRENT) c.textBrand else c.textTertiary,
+                        color = when (s.state) { StepState.CURRENT -> c.textBrand; StepState.MISSED -> c.textDanger; else -> c.textTertiary },
                         textAlign = TextAlign.Center,
                     )
                     s.time?.let { Text(TimeFormat.clock(it), style = OrmoType.bodyXsMedium, color = c.textTertiary) }

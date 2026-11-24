@@ -7,7 +7,8 @@ import java.time.Instant
 import java.time.ZoneId
 
 /** STOPPED: 거절·매장 취소로 여기서 멈춤 (Figma 4.3.3: 첫 칸이 빨강) */
-enum class StepState { DONE, CURRENT, PENDING, STOPPED }
+/** MISSED: 미수령 칸 (Figma: 막대는 연하고 글자만 빨강) */
+enum class StepState { DONE, CURRENT, PENDING, STOPPED, MISSED }
 
 data class StepView(val label: String, val state: StepState, val time: Instant?)
 
@@ -40,6 +41,9 @@ data class OrderDetailView(
 
 object OrderDetailRules {
     const val REFUND_NOTICE = "결제한 금액은 결제수단으로 환불해 드려요. 카드사에 따라 3~5일 걸려요"
+    /** Figma 4.3.4: 직접 취소 / 환불 완료 안내 (두 줄) */
+    const val CANCELED_NOTICE = "결제한 금액은 모두 돌려드려요.\n카드사에 따라 3~5일 걸려요."
+    const val REFUNDED_NOTICE = "결제한 수단으로 금액을 돌려드렸어요.\n카드사에 따라 3~5일 걸려요"
     const val UNCLAIMED_NOTICE = "환불이 필요하면 매장에 문의해주세요"
     const val AUTO_REJECTED_REASON = "매장이 주문을 확인하지 못했어요"
 
@@ -78,10 +82,11 @@ object OrderDetailRules {
                     )
                 } else {
                     // 직접 취소: 단계 바 숨김, 안내 상자에 환불 안내, 영수증은 취소 영수증
-                    base(order, "주문을 취소했어요", infoBox = REFUND_NOTICE, actions = listOf(OrderAction.VIEW_RECEIPT))
+                    base(order, "주문을 취소했어요", infoBox = CANCELED_NOTICE, actions = listOf(OrderAction.VIEW_RECEIPT))
                 }
             OrderStatus.REFUNDED -> base(
                 order, "${formatWon(order.refundAmount ?: order.totalAmount)}을 환불했어요",
+                infoBox = REFUNDED_NOTICE,
                 actions = listOf(OrderAction.VIEW_RECEIPT),
             )
             OrderStatus.UNCLAIMED -> base(
@@ -123,13 +128,15 @@ object OrderDetailRules {
             OrderStatus.REQUESTED -> build(times, current = 0)
             OrderStatus.MAKING -> build(times, current = 1)
             OrderStatus.READY -> build(times, current = 2)
-            OrderStatus.COMPLETED -> build(times, current = null, doneThrough = 3)
+            // Figma 4.3.4: 마지막 칸 '픽업 완료'가 현재 단계처럼 파랗게 (막대는 모두 채움)
+            OrderStatus.COMPLETED -> build(times, current = 3)
             OrderStatus.REFUNDED -> {
                 val last = times.indexOfLast { it != null }.coerceAtLeast(0)
-                build(times, current = null, doneThrough = last)
+                // Figma 4.3.5: 끝까지 진행된 뒤 환불이면 '픽업 완료'가 파란 글자, 중간까지면 진행된 곳까지 완료
+                if (last == 3) build(times, current = 3) else build(times, current = null, doneThrough = last)
             }
             OrderStatus.UNCLAIMED -> STEP_LABELS.mapIndexed { i, label ->
-                if (i < 3) StepView(label, StepState.DONE, times[i]) else StepView(UNCLAIMED_LABEL, StepState.CURRENT, order.closedAt)
+                if (i < 3) StepView(label, StepState.DONE, times[i]) else StepView(UNCLAIMED_LABEL, StepState.MISSED, order.closedAt)
             }
             // Figma 4.3.3: 거절·매장 취소는 첫 칸만 빨간 단계 바. 직접 취소는 숨김.
             OrderStatus.REJECTED -> stopped(order)
