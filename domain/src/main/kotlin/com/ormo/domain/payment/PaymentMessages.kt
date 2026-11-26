@@ -9,7 +9,7 @@ data class DialogText(val title: String, val body: String)
 /** 결제 단계 문구 (디자인 3.1.2, 3.2.2, 3.3.x) */
 object PaymentMessages {
     val CONFIRMING = DialogText("결제를 확인하고 있어요", "잠시만 기다려주세요")
-    val FAILED = DialogText("결제하지 못했어요", "카드 상태를 확인하거나 다른 결제수단을 선택해주세요")
+    val FAILED = DialogText("결제하지 못했어요", "카드 상태를 확인하거나\n다른 결제수단을 선택해주세요")
     val EXHAUSTED = DialogText("더 이상 결제할 수 없어요", "결제를 5번 실패했어요\n장바구니에서 다시 주문해주세요")
     val EXPIRED = DialogText("결제 가능 시간이 지났어요", "결제가 완료되지 않았어요\n장바구니에서 다시 주문해주세요")
 

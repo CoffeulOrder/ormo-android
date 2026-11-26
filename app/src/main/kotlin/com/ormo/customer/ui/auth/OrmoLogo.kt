@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
@@ -118,15 +119,20 @@ fun OrmoMark(
     cupTint: androidx.compose.ui.graphics.Color? = null,
     showSteam: Boolean = true,
     badge: MarkBadge = MarkBadge.None,
+    /** 레이어별 모션 (결제 확인·실패 화면). 각 레이어의 가운데가 기준점 */
+    cupFx: GraphicsLayerScope.() -> Unit = {},
+    steamLeftFx: GraphicsLayerScope.() -> Unit = {},
+    steamRightFx: GraphicsLayerScope.() -> Unit = {},
+    badgeFx: GraphicsLayerScope.() -> Unit = {},
 ) {
     val height = width * (128f / 100.54f)
     Box(modifier.size(width, height)) {
-        MarkLayer(R.drawable.ormo_logo_cup, width, height, left = 0.0155f, top = 0.3152f, right = 0.0156f, bottom = 0.0121f, s = state.cup, tint = cupTint)
+        MarkLayer(R.drawable.ormo_logo_cup, width, height, left = 0.0155f, top = 0.3152f, right = 0.0156f, bottom = 0.0121f, s = state.cup, tint = cupTint, fx = cupFx)
         if (showSteam) {
-            MarkLayer(R.drawable.ormo_logo_steam_l, width, height, left = 0.3528f, top = 0.1028f, right = 0.4486f, bottom = 0.6886f, s = state.steamLeft)
-            MarkLayer(R.drawable.ormo_logo_steam_r, width, height, left = 0.5718f, top = 0.0123f, right = 0.1679f, bottom = 0.7019f, s = state.steamRight)
+            MarkLayer(R.drawable.ormo_logo_steam_l, width, height, left = 0.3528f, top = 0.1028f, right = 0.4486f, bottom = 0.6886f, s = state.steamLeft, fx = steamLeftFx)
+            MarkLayer(R.drawable.ormo_logo_steam_r, width, height, left = 0.5718f, top = 0.0123f, right = 0.1679f, bottom = 0.7019f, s = state.steamRight, fx = steamRightFx)
         }
-        if (badge != MarkBadge.None) MarkBadgeView(badge, Modifier.offset(width * (62f / 100.54f), height * (92f / 128f)))
+        if (badge != MarkBadge.None) MarkBadgeView(badge, Modifier.offset(width * (62f / 100.54f), height * (92f / 128f)).graphicsLayer(badgeFx))
     }
 }
 
@@ -157,7 +163,7 @@ private fun MarkBadgeView(kind: MarkBadge, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun MarkLayer(res: Int, w: Dp, h: Dp, left: Float, top: Float, right: Float, bottom: Float, s: LogoLayerState, tint: androidx.compose.ui.graphics.Color? = null) {
+private fun MarkLayer(res: Int, w: Dp, h: Dp, left: Float, top: Float, right: Float, bottom: Float, s: LogoLayerState, tint: androidx.compose.ui.graphics.Color? = null, fx: GraphicsLayerScope.() -> Unit = {}) {
     Image(
         colorFilter = tint?.let { androidx.compose.ui.graphics.ColorFilter.tint(it) },
         painter = painterResource(res),
@@ -165,6 +171,7 @@ private fun MarkLayer(res: Int, w: Dp, h: Dp, left: Float, top: Float, right: Fl
         modifier = Modifier
             .offset(w * left, h * top)
             .size(w * (1f - left - right), h * (1f - top - bottom))
-            .graphicsLayer { alpha = s.opacity; translationY = s.offsetY.dp.toPx() },
+            .graphicsLayer { alpha = s.opacity; translationY = s.offsetY.dp.toPx() }
+            .graphicsLayer(fx),
     )
 }

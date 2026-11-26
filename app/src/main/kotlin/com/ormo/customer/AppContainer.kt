@@ -42,8 +42,10 @@ class AppContainer(context: Context) {
 
     // 인증은 실제 BE 와 계약이 맞다 (USE_FAKE_AUTH=false). 나머지는 BE 에 없는 부분이 있어 USE_FAKE_BACKEND 로 따로 정한다.
     private val fake: FakeBackend? = if (BuildConfig.USE_FAKE_AUTH) FakeBackend() else null
+    // 디버그 빌드에서만 서버 요청·응답을 logcat 에 남긴다 (태그 ORMO_HTTP)
+    private val httpLog: ((String) -> Unit)? = if (BuildConfig.DEBUG) { { message -> android.util.Log.d("ORMO_HTTP", message) } } else null
     private val client: ApiClient? =
-        if (!BuildConfig.USE_FAKE_AUTH || !BuildConfig.USE_FAKE_BACKEND) ApiClient(BuildConfig.API_BASE_URL, sessions) else null
+        if (!BuildConfig.USE_FAKE_AUTH || !BuildConfig.USE_FAKE_BACKEND) ApiClient(BuildConfig.API_BASE_URL, sessions, log = httpLog) else null
 
     val authApi: AuthApi = fake?.auth ?: RemoteAuthApi(client!!)
 

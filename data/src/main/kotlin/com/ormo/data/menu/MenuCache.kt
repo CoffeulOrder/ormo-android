@@ -26,7 +26,7 @@ interface MenuCache {
  * 그래서 RN 의 "JSON 과 localVersion 두 키를 원자적으로" 트릭이 필요 없다: 파일이 통째로 바뀌거나 그대로이거나.
  * 읽을 때는 같은 파서([MenuSchema])로 다시 검증한다.
  *
- * `schema` = **캐시 스키마 번호**(현재 2: 옵션 그룹 추가). 올리면 서버 버전이 같아도 옛 캐시를 버리고 다시 받는다.
+ * `schema` = **캐시 스키마 번호**(현재 3: 옵션 선택지 품절 추가).올리면 서버 버전이 같아도 옛 캐시를 버리고 다시 받는다.
  * 저장 위치는 백업 제외 영역(Android `noBackupFilesDir`)을 넘겨야 한다.
  */
 class FileMenuCache(
@@ -81,7 +81,7 @@ class FileMenuCache(
     }
 
     companion object {
-        const val CACHE_SCHEMA = 2
+        const val CACHE_SCHEMA = 3
         private const val PREFIX = "menu-"
         private const val SUFFIX = ".json"
         private const val TMP_SUFFIX = ".tmp"

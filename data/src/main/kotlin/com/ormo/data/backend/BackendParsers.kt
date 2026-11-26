@@ -119,12 +119,12 @@ internal object BackendParsers {
 
     class Category(val id: String, val name: String, val sortOrder: Int)
 
-    /** MS-9 */
+    /** MS-9. 이름이 빈 카테고리가 실제로 온다 → 받아 두고, 그 메뉴는 앱에서 '기타' 로 묶는다. 이름 필드가 없거나 문자열이 아니면 오류. */
     fun categories(raw: JsonElement?): List<Category> = arr(raw, "categories").mapIndexed { i, e ->
         val o = obj(e, "categories[$i]")
         Category(
             id = o["categoryId"].id() ?: throw AppError.Schema("categories[$i].categoryId"),
-            name = o["name"].str() ?: throw AppError.Schema("categories[$i].name"),
+            name = (o["name"] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: throw AppError.Schema("categories[$i].name"),
             sortOrder = o["sortOrder"].intValue() ?: i,
         )
     }

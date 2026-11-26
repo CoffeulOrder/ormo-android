@@ -29,7 +29,8 @@ import kotlinx.serialization.json.put
  * id 는 문자열 또는 정수로 받아 String 으로 통일한다 (BE 가 숫자 id 를 써도 되도록).
  * 이미지 URL 이 빈 문자열이면 "없음"으로 본다 (RN 은 거부했음 — 디자인 2.1.1: imageUrl 은 비워 둘 수 있음).
  *
- * 품절 상태는 여기서 읽지 않는다 — 품절은 캐시하지 않고 `menu-status` 로 따로 받아 메모리에만 둔다.
+ * **메뉴** 품절 상태는 여기서 읽지 않는다 — 캐시하지 않고 `menu-status` 로 따로 받아 메모리에만 둔다.
+ * **옵션 선택지** 품절은 따로 받는 API 가 없어 메뉴와 함께 읽고 저장한다.
  */
 object MenuSchema {
 
@@ -111,7 +112,7 @@ object MenuSchema {
                 val deltaRaw = co["priceDelta"]
                 val delta = if (deltaRaw == null) 0 else deltaRaw.intValue() ?: throw AppError.Schema("$cAt.priceDelta")
                 if (!seen.add(cid)) throw AppError.Schema("$cAt.id 중복") // 선택지 id 는 메뉴 안에서 고유
-                OptionChoice(cid, cname, delta)
+                OptionChoice(cid, cname, delta, soldOut = co["soldOut"].boolValue() == true)
             }
 
             val maxRaw = go["maxSelect"]
@@ -166,6 +167,7 @@ object MenuSchema {
                                     put("id", c.id)
                                     put("name", c.name)
                                     put("priceDelta", c.priceDelta)
+                                    if (c.soldOut) put("soldOut", true)
                                 })
                             }
                         })

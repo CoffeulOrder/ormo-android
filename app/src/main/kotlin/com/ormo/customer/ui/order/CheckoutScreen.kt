@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
@@ -32,8 +31,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import com.ormo.customer.ui.auth.MarkBadge
-import com.ormo.customer.ui.auth.OrmoMark
+import com.ormo.customer.ui.auth.rememberReducedMotion
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.draw.alpha
@@ -121,6 +122,27 @@ fun CheckoutScreen(
         }
     }
 
+    // 확인 중(3.2.2)에서 결과가 나오면 문구를 먼저 지우고 넘어간다 ("넘어가기 직전에 문구가 사라져요")
+    val reduced = rememberReducedMotion()
+    var holding by remember { mutableStateOf(false) }
+    LaunchedEffect(phase) {
+        if (phase is PaymentPhase.Confirming) {
+            holding = true
+        } else if (holding) {
+            val result = phase is PaymentPhase.Failed || phase == PaymentPhase.Exhausted || phase == PaymentPhase.Expired
+            if (result && !reduced) kotlinx.coroutines.delay(CONFIRM_FADE_MS.toLong())
+            holding = false
+        }
+    }
+    // 확인이 늦으면 화면은 그대로 두고 뒤에서 계속 묻는다
+    val unresolved = (phase as? PaymentPhase.Confirming)?.checkFailed == true
+    LaunchedEffect(unresolved) {
+        while (unresolved) {
+            kotlinx.coroutines.delay(3_000)
+            vm.pollOnce()
+        }
+    }
+
     // 결제 성공 → 주문 접수 (4.1.1)
     LaunchedEffect(phase == PaymentPhase.Succeeded) {
         if (phase == PaymentPhase.Succeeded) vm.onPaid()?.let(onPaid)
@@ -136,22 +158,20 @@ fun CheckoutScreen(
         if (payment.prepareError != null) vm.clearPrepareError()
     }
 
-    // 결제 확인 중(3.2.2)·준비 중·결제창에서는 뒤로가기를 막는다
-    BackHandler(enabled = payment.backBlocked) { }
+    // 결제 확인 중(3.2.2)·준비 중·결제창에서는 뒤로가기를 막는다.
+    // 단, 확인이 계속 안 될 때는 뒤로가기로 주문서에 나갈 수 있다 (giveUpWaiting 은 그때만 동작 — 갇히지 않게).
+    BackHandler(enabled = payment.backBlocked) { vm.giveUpWaiting() }
 
     Box(Modifier.fillMaxSize().background(c.bgDefault)) {
         when {
-            phase is PaymentPhase.Confirming || phase == PaymentPhase.Succeeded -> ConfirmingScreen(
-                checkFailed = (phase as? PaymentPhase.Confirming)?.checkFailed == true,
-                onRecheck = vm::recheck,
-                onGiveUp = vm::giveUpWaiting,
+            phase is PaymentPhase.Confirming || phase == PaymentPhase.Succeeded || holding -> ConfirmingScreen(
+                leaving = phase !is PaymentPhase.Confirming && phase != PaymentPhase.Succeeded,
             )
             phase is PaymentPhase.Failed && !failureDismissed -> ResultScreen(
                 title = PaymentMessages.failed(phase.code).title,
                 body = PaymentMessages.failed(phase.code).body,
                 primary = "다시 결제하기" to vm::pay,
                 secondary = "결제수단 변경하기" to { failureDismissed = true; scrollToPayment++ },
-                bodyMaxWidth = 186.dp,
             )
             phase == PaymentPhase.Exhausted -> ResultScreen(
                 title = PaymentMessages.EXHAUSTED.title,
@@ -350,20 +370,22 @@ private fun LineRow(line: CartLine, soldOut: Boolean, amount: Int, onQty: (Int) 
     }
 }
 
+private const val CONFIRM_FADE_MS = 300
+
 /**
  * 결제 확인·결과 화면 공통 (Figma 3.2.2 / 3.3.1 / 3.3.2): 심볼 상자가 (137,233), 제목 글자는 y=421, 본문 24 줄간격 12 아래.
- * 확인 중 = 심볼만, 실패 = 빨간 ✕ 배지, 만료 = 짙은 남색 컵(김 없음) + 회색 시계 배지.
+ * 확인 중 = 김이 오르내리는 심볼, 실패 = 김 없는 컵 + 빨간 ✕ 배지, 만료 = 짙은 남색 컵 + 회색 시계 배지.
  */
 @Composable
 private fun StatusScreen(
     title: String,
     body: String,
     mark: @Composable () -> Unit,
-    extra: @Composable () -> Unit = {},
+    /** 제목·본문 묶음, 하단 버튼에 거는 등장·퇴장 모션 */
+    textModifier: Modifier = Modifier,
+    bottomModifier: Modifier = Modifier,
     /** 화면 전체 위에 그리는 모션 (Lottie). 심볼 자리는 [mark] 가 비워 둔다 */
     overlay: (@Composable (Modifier) -> Unit)? = null,
-    /** 본문 줄바꿈 폭 (Figma 3.3.1 결제 실패: 글자 폭 186 고정 → 두 줄) */
-    bodyMaxWidth: androidx.compose.ui.unit.Dp? = null,
     bottom: (@Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit)? = null,
 ) {
     val c = Ormo.colors
@@ -377,36 +399,27 @@ private fun StatusScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             mark()
-            Text(title, style = OrmoType.displayXsSemibold, color = c.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 55.dp).semantics { heading() })
-            Text(body, style = OrmoType.bodyMdMedium, color = c.textSecondary, textAlign = TextAlign.Center, modifier = Modifier.then(if (bodyMaxWidth != null) Modifier.widthIn(max = bodyMaxWidth) else Modifier).padding(top = 12.dp))
-            extra()
+            Column(textModifier, horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(title, style = OrmoType.displayXsSemibold, color = c.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 55.dp).semantics { heading() })
+                Text(body, style = OrmoType.bodyMdMedium, color = c.textSecondary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 12.dp))
+            }
         }
-        if (bottom != null) BottomCta(content = bottom)
+        if (bottom != null) BottomCta(bottomModifier, content = bottom)
     }
     }
 }
 
-/** 결제 확인 중 (3.2.2): 뒤로가기 막음. 서버가 확정할 때까지. 확인이 계속 안 되면 [다시 확인] / [주문서로 나가기](주문은 유지). */
+/** 결제 확인 중 (3.2.2): 심볼과 문구뿐, 버튼 없음. 서버가 확정할 때까지. [leaving] = 결과가 나와 문구를 지우는 중 */
 @Composable
-private fun ConfirmingScreen(checkFailed: Boolean, onRecheck: () -> Unit, onGiveUp: () -> Unit) {
-    val c = Ormo.colors
+private fun ConfirmingScreen(leaving: Boolean) {
+    val textAlpha = animateFloatAsState(if (leaving) 0f else 1f, tween(CONFIRM_FADE_MS), label = "confirm-text")
     StatusScreen(
         title = PaymentMessages.CONFIRMING.title,
         body = PaymentMessages.CONFIRMING.body,
-        mark = { OrmoMark() },
-        extra = {
-            if (checkFailed) {
-                // TODO(spec 3.2.2): 명세는 뒤로가기 막음뿐이라 갇히지 않게 하는 안내·탈출구는 가정
-                Text("확인이 조금 늦어지고 있어요", style = OrmoType.bodyMdMedium, color = c.textTertiary, modifier = Modifier.padding(top = Space.s16))
-            }
-        },
-        bottom = if (checkFailed) {
-            {
-                OrmoButton("다시 확인", onRecheck, Modifier.fillMaxWidth(), size = ButtonSize.XL)
-                OrmoButton("주문서로 나가기", onGiveUp, Modifier.fillMaxWidth(), kind = ButtonKind.Ghost)
-            }
-        } else {
-            null
+        mark = { ConfirmingMark() },
+        textModifier = Modifier.graphicsLayer {
+            alpha = textAlpha.value
+            translationY = (textAlpha.value - 1f) * 6.dp.toPx() // 위로 6 만큼 빠지며 사라짐
         },
     )
 }
@@ -419,16 +432,18 @@ private fun ResultScreen(
     primary: Pair<String, () -> Unit>,
     secondary: Pair<String, () -> Unit>? = null,
     expired: Boolean = false,
-    bodyMaxWidth: androidx.compose.ui.unit.Dp? = null,
 ) {
-    val c = Ormo.colors
+    // 실패(3.3.1) 등장 모션. 만료(3.3.2)는 아래 Lottie 를 쓴다
+    val failure = if (expired) null else rememberFailureMotion()
     StatusScreen(
         title = title,
         body = body,
+        textModifier = failure?.text ?: Modifier,
+        bottomModifier = failure?.bottom ?: Modifier,
         mark = {
             // 만료는 Figma 3.3.2 의 Lottie 모션(`ormo_cup_badge`: 컵이 짙은 남색으로, 회색 시계 배지) — 자리는 비워 두고 StatusScreen 위에서 그린다
-            if (expired) Spacer(Modifier.size(100.54.dp, 128.dp))
-            else OrmoMark(badge = MarkBadge.Danger)
+            if (failure == null) Spacer(Modifier.size(100.54.dp, 128.dp))
+            else failure.Mark()
         },
         overlay = if (expired) ({ m -> com.ormo.customer.ui.auth.OrmoLottie(
                     com.ormo.customer.R.raw.ormo_cup_badge,
@@ -436,7 +451,6 @@ private fun ResultScreen(
                     // 짙은 남색 컵은 어두운 바탕에서 안 보여 파랑(Blue 600)으로
                     recolor = if (Ormo.colors.isDark) listOf(com.ormo.customer.ui.auth.LottieRecolor("Cup", androidx.compose.ui.graphics.Color(0xFF1759C4))) else emptyList(),
                 ) }) else null,
-        bodyMaxWidth = bodyMaxWidth,
         bottom = {
             OrmoButton(primary.first, primary.second, Modifier.fillMaxWidth(), size = ButtonSize.XL)
             // Figma: 보조 버튼은 연한 파랑 채움 (결제수단 변경하기)
