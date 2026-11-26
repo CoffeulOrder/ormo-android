@@ -32,7 +32,6 @@ import com.ormo.core.Outcome
 import com.ormo.core.formatWon
 import com.ormo.customer.AppContainer
 import com.ormo.customer.ui.components.OrmoDivider
-import com.ormo.customer.ui.components.Download
 import com.ormo.customer.ui.components.OrmoIcons
 import com.ormo.customer.ui.theme.Ormo
 import com.ormo.customer.ui.theme.OrmoType

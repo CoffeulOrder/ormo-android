@@ -47,7 +47,8 @@ enum class DialogLayout { Horizontal, Vertical, Single }
  * 등장: 알파 0.2초 + 크기 0.94→1 (3.1.2 명세).
  *
  * @param dismissLabel 닫기 버튼 문구. Horizontal 이면 왼쪽, Vertical 이면 확인 버튼 아래. null 이면 Single.
- * @param onDismissRequest 바깥 터치·뒤로가기. null 이면 닫히지 않는다 (필수 확인 다이얼로그).
+ * @param onDismissRequest 바깥 터치·뒤로가기. 기본은 [onDismiss], 닫기 버튼이 없는 안내형(확인 한 개)이면 [onConfirm] —
+ *   예전에는 이때 null 이라 안내 창이 떠 있는 동안 시스템 뒤로가기가 아무 반응이 없었다. 명시적으로 null 을 주면 닫히지 않는다 (로그인 만료 같은 필수 확인).
  */
 @Composable
 fun OrmoDialog(
@@ -60,7 +61,7 @@ fun OrmoDialog(
     onDismiss: (() -> Unit)? = null,
     layout: DialogLayout = if (dismissLabel == null) DialogLayout.Single else DialogLayout.Horizontal,
     tone: DialogTone = DialogTone.Neutral,
-    onDismissRequest: (() -> Unit)? = onDismiss,
+    onDismissRequest: (() -> Unit)? = onDismiss ?: onConfirm,
 ) {
     val c = Ormo.colors
     Dialog(

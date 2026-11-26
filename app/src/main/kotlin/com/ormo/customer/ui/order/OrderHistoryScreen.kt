@@ -35,7 +35,6 @@ import com.ormo.core.formatWon
 import com.ormo.customer.AppContainer
 import com.ormo.customer.ui.components.ButtonKind
 import com.ormo.customer.ui.components.ButtonSize
-import com.ormo.customer.ui.components.Cup
 import com.ormo.customer.ui.components.OrmoButton
 import com.ormo.customer.ui.components.OrmoDialog
 import com.ormo.customer.ui.components.OrmoDivider
@@ -129,25 +128,18 @@ fun OrderHistoryScreen(
     Column(Modifier.fillMaxSize().background(c.bgDefault)) {
         OrmoTopNav(title = "주문 내역", onBack = onBack)
         when {
-            state.isEmpty -> Column(
-                Modifier.weight(1f).fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Box(Modifier.size(60.dp).clip(CircleShape).background(c.bgLower), contentAlignment = Alignment.Center) {
-                    Icon(OrmoIcons.Cup, null, tint = c.iconSecondary, modifier = Modifier.size(28.dp))
-                }
-                Text(OrderHistoryRules.EMPTY_TITLE, style = OrmoType.bodyLgSemibold, color = c.textPrimary, modifier = Modifier.padding(top = Space.s16))
-                OrmoButton("메뉴 보기", onBrowseMenu, Modifier.padding(top = Space.s16), size = ButtonSize.S)
-            }
-            state.failed && state.orders.isEmpty() -> Column(
-                Modifier.weight(1f).fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Text("주문 내역을 불러오지 못했어요", style = OrmoType.bodyLgSemibold, color = c.textPrimary)
-                OrmoButton("다시 시도", vm::refresh, Modifier.padding(top = Space.s16), kind = ButtonKind.WeakNeutral, size = ButtonSize.M)
-            }
+            state.isEmpty -> com.ormo.customer.ui.components.OrmoResult(
+                icon = OrmoIcons.Coffee,
+                title = OrderHistoryRules.EMPTY_TITLE,
+                modifier = Modifier.weight(1f),
+                action = "메뉴 보기" to onBrowseMenu,
+            )
+            state.failed && state.orders.isEmpty() -> com.ormo.customer.ui.components.OrmoResult(
+                icon = OrmoIcons.WifiOff,
+                title = "주문 내역을 불러오지 못했어요",
+                modifier = Modifier.weight(1f),
+                action = "다시 시도" to vm::refresh,
+            )
             else -> LazyColumn(Modifier.weight(1f), state = list) {
                 items(state.orders, key = { it.id }) { order ->
                     HistoryCard(order, onOpen = { onOrder(order.id) }, onReorder = { vm.reorder(order) }, onBrowse = onBrowseMenu)
@@ -212,9 +204,9 @@ private fun OrderLinesBlockInline(order: Order) {
     val c = Ormo.colors
     order.lines.forEach { l ->
         Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(Space.s4), verticalAlignment = Alignment.Bottom) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.s4), verticalAlignment = Alignment.CenterVertically) {
                 Text(l.name, style = OrmoType.bodyMdSemibold, color = c.textPrimary)
-                Text("${l.qty}개", style = OrmoType.bodySmRegular, color = c.textSecondary)
+                Text("${l.qty}개", style = OrmoType.bodySmMedium, color = c.textSecondary)
             }
             if (l.optionSummary.isNotBlank()) Text(l.optionSummary, style = OrmoType.bodySmRegular, color = c.textSecondary)
         }

@@ -28,8 +28,6 @@ import com.ormo.customer.ui.components.BottomCta
 import com.ormo.customer.ui.components.ButtonSize
 import com.ormo.customer.ui.components.OrmoButton
 import com.ormo.customer.ui.components.OrmoIcons
-import com.ormo.customer.ui.components.WifiOff
-import com.ormo.customer.ui.components.Wrench
 import com.ormo.customer.ui.theme.Ormo
 import com.ormo.customer.ui.theme.OrmoType
 import com.ormo.customer.ui.theme.Space
@@ -94,22 +92,14 @@ fun CommonErrorScreen(error: CommonError, buttonLabel: String, onButton: () -> U
         )
         return
     }
-    // Figma 6.1: 아이콘 원·글·버튼 묶음(높이 188)이 화면 세로 중앙보다 44 위에 놓인다
-    Column(modifier.fillMaxSize().background(c.bgDefault).padding(bottom = 88.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = Space.pageMargin), horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(Modifier.size(60.dp).clip(CircleShape).background(c.bgLower), contentAlignment = Alignment.Center) {
-                androidx.compose.material3.Icon(
-                    if (error is CommonError.Network) OrmoIcons.WifiOff else OrmoIcons.Wrench,
-                    null, tint = c.iconTertiary, modifier = Modifier.size(28.dp),
-                )
-            }
-            Text(error.title, style = OrmoType.bodyLgSemibold, color = c.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 18.dp))
-            Text(error.body, style = OrmoType.bodyMdRegular, color = c.textSecondary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = Space.s4))
-            val notice = (error as? CommonError.Maintenance)?.endsAtNotice
-            if (notice != null) {
-                Text(notice, style = OrmoType.bodyMdSemibold, color = c.textBrand, modifier = Modifier.padding(top = Space.s8))
-            }
-            OrmoButton(buttonLabel, onButton, Modifier.padding(top = Space.s16), size = ButtonSize.M)
-        }
-    }
+    // Figma 6.1.1 Result: 회색 원 60(아이콘 32) · 제목 · 설명 · 버튼 — 비율 배치는 OrmoResult 가 맡는다 (어떤 화면 크기에서도 같은 모양)
+    val notice = (error as? CommonError.Maintenance)?.endsAtNotice
+    com.ormo.customer.ui.components.OrmoResult(
+        icon = if (error is CommonError.Network) OrmoIcons.WifiOff else OrmoIcons.Wrench,
+        title = error.title,
+        body = error.body,
+        modifier = modifier.background(c.bgDefault),
+        extra = if (notice != null) ({ Text(notice, style = OrmoType.bodyMdSemibold, color = c.textBrand, textAlign = TextAlign.Center) }) else null,
+        action = buttonLabel to onButton,
+    )
 }

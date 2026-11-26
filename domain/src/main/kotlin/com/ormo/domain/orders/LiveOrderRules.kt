@@ -19,6 +19,8 @@ data class LiveBarView(
     val otherActiveCount: Int,
     /** 바 왼쪽의 번호 상자 (Figma 2.1.4 '27') */
     val pickupNumber: Int? = null,
+    /** 내 앞 N건 (헤더 현황의 '· 내 앞 2건'). 모르면 null */
+    val aheadCount: Int? = null,
 )
 
 object LiveOrderRules {
@@ -38,11 +40,27 @@ object LiveOrderRules {
         else -> 1
     }
 
-    /** 사용자가 닫을 수 없다. 진행 중 주문이 없으면 null → 바를 그리지 않는다 (픽업 완료·거절·취소 시 내려감). */
+    /**
+     * 진행 중 주문 전부를 **먼저 받을 순서**대로 (2.1.4 플로팅 버튼을 누르면 열리는 큰 바들).
+     * 맨 앞이 가장 먼저 받을 주문이다 — 화면에서는 이것이 버튼과 가장 가까운(맨 아래) 바가 된다.
+     * 순서: 픽업 대기 > 만드는 중 > 주문 확인 중, 같은 단계면 먼저 주문한 것. 진행 중 주문이 없으면 빈 목록 → 버튼을 그리지 않는다.
+     */
+    fun bars(orders: List<Order>, zone: ZoneId = TimeFormat.SEOUL): List<LiveBarView> {
+        val active = orders.filter { it.status.isActive }
+        val others = active.size - 1
+        return active
+            .sortedWith(compareByDescending<Order> { priority(it.status) }.thenBy { it.placedAt })
+            .mapNotNull { view(it, others, zone) }
+    }
+
+    /** 단계 하나만 보여줄 때 (가장 먼저 받을 주문). 진행 중 주문이 없으면 null. */
     fun bar(orders: List<Order>, zone: ZoneId = TimeFormat.SEOUL): LiveBarView? {
         val order = select(orders) ?: return null
+        return view(order, orders.count { it.status.isActive } - 1, zone)
+    }
+
+    private fun view(order: Order, others: Int, zone: ZoneId): LiveBarView? {
         val stage = order.status.liveBarStage ?: return null
-        val others = orders.count { it.status.isActive } - 1
         val num = order.pickupNumber?.let { "${it}번" }
         return (when (stage) {
             LiveBarStage.CONFIRMING -> {
@@ -54,18 +72,23 @@ object LiveOrderRules {
                     otherActiveCount = others,
                 )
             }
-            LiveBarStage.MAKING -> LiveBarView(
-                order.id, stage, 2, "음료를 만들고 있어요", order.storeName,
-                describe(num, "음료를 만들고 있어요", order.storeName), others,
-            )
+            LiveBarStage.MAKING -> {
+                // Figma 2.1.4 Flat: 만드는 중에도 '범석관 카페 · 내 앞에 2건'
+                val ahead = order.aheadCount?.let { "내 앞에 ${it}건" }
+                val sub = listOfNotNull(order.storeName, ahead).joinToString(" · ")
+                LiveBarView(
+                    order.id, stage, 2, "음료를 만들고 있어요", sub,
+                    describe(num, "음료를 만들고 있어요", listOfNotNull(order.storeName, ahead).joinToString(" ")), others,
+                )
+            }
             LiveBarStage.READY -> {
-                val sub = order.deadline?.let { "${TimeFormat.clock(it, zone)}까지 받아주세요" }
+                val sub = order.deadline?.let { "${TimeFormat.clock(it, zone)}까지 받아 주세요" } // Figma: 받아 주세요 (띄어쓰기)
                 LiveBarView(
                     order.id, stage, 3, "음료가 준비됐어요", sub,
                     describe(num, "음료가 준비됐어요", sub.orEmpty()), others,
                 )
             }
-        }).copy(pickupNumber = order.pickupNumber)
+        }).copy(pickupNumber = order.pickupNumber, aheadCount = order.aheadCount)
     }
 
     private fun describe(num: String?, title: String, sub: String): String =

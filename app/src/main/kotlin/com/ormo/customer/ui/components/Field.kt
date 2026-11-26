@@ -31,7 +31,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
@@ -49,6 +55,51 @@ import com.ormo.customer.ui.theme.OrmoType
 import com.ormo.customer.ui.theme.Shapes
 import com.ormo.customer.ui.theme.Size
 import com.ormo.customer.ui.theme.Space
+
+/**
+ * 키보드의 완료·이동·검색·보내기 키를 누르면 원래 동작(제출 등)을 한 뒤 **키보드를 내리고 포커스를 푼다**.
+ * 다음(Next)·이전(Previous) 키는 그대로 둬서 다음 칸으로 넘어간다. 동작을 정하지 않은 키도 기본 동작(키보드 내림)과 같다.
+ */
+@Composable
+fun KeyboardActions.hidingKeyboard(): KeyboardActions {
+    val focus = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    val original = this
+    val hide = { keyboard?.hide(); focus.clearFocus() }
+    return KeyboardActions(
+        onDone = { original.onDone?.invoke(this); hide() },
+        onGo = { original.onGo?.invoke(this); hide() },
+        onSearch = { original.onSearch?.invoke(this); hide() },
+        onSend = { original.onSend?.invoke(this); hide() },
+        onNext = original.onNext,
+        onPrevious = original.onPrevious,
+    )
+}
+
+/**
+ * 목록을 손가락으로 끌면(스크롤하면) 키보드를 내리고 포커스를 푼다 — 키보드가 가린 아래쪽 내용을 바로 볼 수 있게 (검색 결과 등).
+ * 스크롤하는 목록(LazyColumn·verticalScroll)에 붙인다. 스크롤할 내용이 없어도 끌기만 하면 내려간다.
+ */
+@Composable
+fun Modifier.hideKeyboardOnScroll(): Modifier {
+    val focus = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    val connection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (source == NestedScrollSource.UserInput && available.y != 0f) {
+                    keyboard?.hide()
+                    focus.clearFocus()
+                }
+                return Offset.Zero
+            }
+        }
+    }
+    return nestedScroll(connection)
+}
+
+/** 입력칸 안쪽 좌우 여백: 테두리 1 + 16 (Figma: 테두리가 안쪽이라 내용은 17 에서 시작) */
+private val INPUT_PAD = 17.dp
 
 /** 입력칸 높이: L 56 / M 48 (디자인 4.3) */
 enum class FieldSize(val height: androidx.compose.ui.unit.Dp) { L(Size.fieldL), M(Size.fieldM) }
@@ -98,7 +149,7 @@ fun OrmoField(
     val borderColor = when {
         isInvalid -> c.fillDanger
         focused -> c.fillBrand
-        else -> Base.GreyOpacity300
+        else -> c.borderStrong
     }
     val borderWidth = if (isInvalid || focused) Size.borderThick else Size.borderThin
 
@@ -117,7 +168,7 @@ fun OrmoField(
             cursorBrush = SolidColor(c.fillBrand),
             visualTransformation = visualTransformation,
             keyboardOptions = keyboardOptions,
-            keyboardActions = keyboardActions,
+            keyboardActions = keyboardActions.hidingKeyboard(),
             modifier = Modifier
                 .fillMaxWidth()
                 .focusRequester(requester)
@@ -135,8 +186,12 @@ fun OrmoField(
                         .clip(Shapes.control56)
                         .background(c.bgDefault)
                         .border(borderWidth, borderColor, Shapes.control56)
-                        // 오른쪽 아이콘은 48dp 터치 영역을 갖는다 → 그만큼 오른쪽 여백을 줄여 모양은 그대로
-                        .padding(start = Space.s16, end = if (trailing != null || (clearable && focused && value.isNotEmpty() && suffix == null)) Space.s4 else Space.s16),
+                        // Figma: 테두리 1dp 는 **안쪽(INSIDE)** 이라 내용은 테두리 + 좌우 여백 16 = 17 에서 시작·끝난다 (C-01).
+                        // 아이콘 버튼은 48dp 터치 영역을 갖는다 → 오른쪽 여백을 그만큼 줄여 아이콘 위치(끝에서 17)는 그대로
+                        .padding(
+                            start = INPUT_PAD,
+                            end = if (suffix == null && (trailing != null || (clearable && focused && value.isNotEmpty()))) INPUT_PAD - 12.dp else INPUT_PAD,
+                        ),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(Space.s8),
                 ) {
@@ -149,11 +204,16 @@ fun OrmoField(
                     if (suffix != null) {
                         val suffixText: @Composable () -> Unit = { Text(suffix, style = OrmoType.bodyMdRegular, color = c.textTertiary) }
                         if (onSuffixClick != null) {
-                            // 도메인 선택: 눌리는 영역을 48dp 이상으로
-                            Box(
+                            // 도메인 선택 (C-02): '@도메인' → 8 → chevron(24) 을 **하나의 터치 영역**(높이 48 이상)으로 묶는다.
+                            // chevron 을 따로 48×48 상자에 넣으면 배치 폭이 커져 접미 글자가 왼쪽으로 밀린다.
+                            Row(
                                 Modifier.heightIn(min = 48.dp).focusProperties { canFocus = false }.clickable(role = Role.Button, onClickLabel = "학교 메일 주소 선택", onClick = onSuffixClick),
-                                contentAlignment = Alignment.Center,
-                            ) { suffixText() }
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(Space.s8),
+                            ) {
+                                suffixText()
+                                if (trailing != null) Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) { trailing() }
+                            }
                         } else {
                             suffixText()
                         }
@@ -167,13 +227,8 @@ fun OrmoField(
                             Icon(OrmoIcons.ClearCircle, contentDescription = null, tint = c.iconTertiary, modifier = Modifier.size(Size.iconLg))
                         }
                     }
-                    if (trailing != null) {
-                        Box(
-                            Modifier
-                                .size(48.dp)
-                                .then(if (onSuffixClick != null) Modifier.focusProperties { canFocus = false }.clickable(role = Role.Button, onClickLabel = "학교 메일 주소 선택", onClick = onSuffixClick) else Modifier),
-                            contentAlignment = Alignment.Center,
-                        ) { trailing() }
+                    if (trailing != null && suffix == null) {
+                        Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) { trailing() }
                     }
                 }
             },
@@ -187,7 +242,7 @@ fun OrmoField(
                     Text(error!!, style = OrmoType.bodySmMedium, color = c.textDanger, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
                 }
             } else {
-                Text(helper!!, style = OrmoType.bodySmRegular, color = c.textTertiary)
+                Text(helper!!, style = OrmoType.bodySmRegular, color = c.textSecondary) // Figma: Text/Secondary (C-05)
             }
         }
     }
@@ -232,7 +287,8 @@ fun OrmoPasswordField(
                     .semantics { stateDescription = if (visible) "비밀번호가 보이는 중" else "비밀번호가 가려진 중" },
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(if (visible) OrmoIcons.EyeOff else OrmoIcons.Eye, contentDescription = null, tint = c.iconSecondary, modifier = Modifier.size(Size.iconLg))
+                // 가려진 상태(••••)에서는 눈이 감긴(사선) 아이콘, 보이는 상태(abcd)에서는 눈이 뜬 아이콘
+                Icon(if (visible) OrmoIcons.Eye else OrmoIcons.EyeOff, contentDescription = null, tint = c.iconPrimary, modifier = Modifier.size(Size.iconLg)) // Figma: Icon/Primary (C-03)
             }
         },
         visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -247,7 +303,10 @@ fun PasswordRuleRow(text: String, satisfied: Boolean, modifier: Modifier = Modif
     val c = Ormo.colors
     val color = if (satisfied) c.textBrand else c.textTertiary
     Row(modifier.semantics { contentDescription = text + if (satisfied) ", 충족" else ", 미충족" }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
-        Icon(OrmoIcons.Check, contentDescription = null, tint = if (satisfied) c.iconBrand else c.iconTertiary, modifier = Modifier.size(Size.iconSm))
+        // Figma: 아이콘 박스 20 안에 check 그림(획 3) — 박스 20, 그림은 16 크기로 (C-09)
+        Box(Modifier.size(20.dp), contentAlignment = Alignment.Center) {
+            Icon(OrmoIcons.Check, contentDescription = null, tint = if (satisfied) c.iconBrand else c.iconTertiary, modifier = Modifier.size(Size.iconSm))
+        }
         Text(text, style = OrmoType.bodySmMedium, color = color)
     }
 }

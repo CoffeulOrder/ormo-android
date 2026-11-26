@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -66,14 +67,11 @@ fun StoreInfoScreen(storeId: String, repo: StoreRepository, onBack: () -> Unit) 
         OrmoTopNav(title = "매장 정보", onBack = onBack)
         val r = result
         if (r is Outcome.Fail) {
-            Column(
-                Modifier.fillMaxSize().padding(Space.pageMargin),
-                verticalArrangement = Arrangement.spacedBy(Space.s8, Alignment.CenterVertically),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text("매장 정보를 불러오지 못했어요", style = OrmoType.bodyLgSemibold, color = c.textPrimary)
-                OrmoButton("다시 시도", { attempt++ }, Modifier.padding(top = Space.s16), kind = ButtonKind.WeakNeutral, size = ButtonSize.M)
-            }
+            com.ormo.customer.ui.components.OrmoResult(
+                icon = com.ormo.customer.ui.components.OrmoIcons.WifiOff,
+                title = "매장 정보를 불러오지 못했어요",
+                action = "다시 시도" to { attempt++ },
+            )
         } else {
             DelayedSkeleton(
                 loading = r == null,
@@ -89,18 +87,22 @@ fun StoreInfoScreen(storeId: String, repo: StoreRepository, onBack: () -> Unit) 
                     val view = StoreInfoRules.view(info)
                     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                         // Figma 1.2.1: 글자 시작 x=24, 매장 이름 글자 y=119
-                        Row(Modifier.padding(start = Space.s24, end = Space.s24, top = 7.dp, bottom = 17.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+                        // 이름은 줄바꿈, 상태 뱃지는 맨 윗줄의 세로 가운데
+                        val firstLine = with(androidx.compose.ui.platform.LocalDensity.current) { OrmoType.bodyXlBold.lineHeight.toDp() }
+                        Row(Modifier.padding(start = Space.s24, end = Space.s24, top = 7.dp, bottom = 17.dp), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                             Text(store?.displayName ?: info.name, style = OrmoType.bodyXlBold, color = c.textStrong, modifier = Modifier.weight(1f, fill = false))
                             store?.let { s ->
                                 val label = StoreRules.statusLabel(s.status, LocalDateTime.now())
-                                OrmoBadge(label.text, when (s.status) { is StoreStatus.Open -> BadgeKind.Optional; is StoreStatus.Break -> BadgeKind.Warning; else -> BadgeKind.SoldOut })
+                                Box(Modifier.height(firstLine), contentAlignment = Alignment.Center) {
+                                    OrmoBadge(label.text, when (s.status) { is StoreStatus.Open -> BadgeKind.Optional; is StoreStatus.Break -> BadgeKind.Warning; else -> BadgeKind.SoldOut })
+                                }
                             }
                         }
                         view.location?.let { Section("위치") { Text(it, style = OrmoType.bodyMdRegular, color = c.textSecondary) } }
                         Section("운영시간") { view.hours.forEach { Line(it) } }
                         if (view.notice != null) Section("공지") { Text(view.notice!!, style = OrmoType.bodyMdRegular, color = c.textPrimary) }
                         OrmoThickDivider(Modifier.padding(top = Space.s8))
-                        Section("판매자 정보") { view.seller.forEach { Line(it) } }
+                        Section("판매자 정보") { view.seller.forEach { FixedLine(it) } }
                         Text(
                             view.disclosure,
                             style = OrmoType.bodySmRegular,
@@ -127,6 +129,22 @@ private fun Section(title: String, content: @Composable () -> Unit) {
         content()
     }
 }
+
+/**
+ * 판매자 정보 한 줄: **두 열이 줄마다 같은 고정 너비** — 라벨 칸 [LABEL_WIDTH], 값 칸은 나머지 전부. 어느 쪽이든 길면 칸 안에서 줄바꿈하고
+ * (다른 칸을 밀지 않는다), 값은 오른쪽 끝에 붙는다 (Figma 1.2.1: 라벨 왼쪽 · 값 오른쪽 양쪽 정렬).
+ */
+@Composable
+private fun FixedLine(line: InfoLine) {
+    val c = Ormo.colors
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.s16), verticalAlignment = Alignment.Top) {
+        Text(line.label, style = OrmoType.bodyMdRegular, color = c.textTertiary, modifier = Modifier.width(LABEL_WIDTH))
+        // 양쪽 정렬: 라벨은 왼쪽 끝, 값은 오른쪽 끝에 붙고 (여러 줄이어도 오른쪽 정렬), 줄바꿈은 각자의 칸 안에서
+        Text(line.value, style = OrmoType.bodyMdRegular, color = c.textPrimary, textAlign = TextAlign.End, modifier = Modifier.weight(1f))
+    }
+}
+
+private val LABEL_WIDTH = 96.dp
 
 /** 라벨은 왼쪽(Text/Tertiary), 값은 오른쪽 정렬 (Figma 1.2.1) */
 @Composable

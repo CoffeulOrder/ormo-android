@@ -56,7 +56,7 @@ object StoreRules {
     fun statusLabel(status: StoreStatus, now: LocalDateTime): StatusLabel = when (status) {
         StoreStatus.Open -> StatusLabel("영업 중")
         is StoreStatus.Break -> StatusLabel(
-            "잠시 쉬어요",
+            "준비 중",
             status.reopenAt?.takeIf { it.isAfter(now) }?.let { "${dayPrefix(it, now)}${clock(it)}에 다시 열어요" },
         )
         is StoreStatus.Closed -> StatusLabel("영업 종료")

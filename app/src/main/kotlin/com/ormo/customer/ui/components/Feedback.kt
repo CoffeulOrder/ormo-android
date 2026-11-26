@@ -24,8 +24,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,6 +67,31 @@ object SnackbarDurations {
 
     /** 비밀번호 변경 토스트 */
     const val PASSWORD_CHANGED = 2_000L
+}
+
+/** 하단 스낵바와 그 위에 놓인 버튼 영역 사이 간격 (Figma 2.2.2: 토스트 아랫선 ↔ 장바구니 버튼 윗선 12) */
+val SNACKBAR_GAP: Dp = 12.dp
+
+/**
+ * 화면 아래에 붙은 버튼 영역(하단 CTA·장바구니 바)이 자기 **윗선의 높이**(화면 아래에서부터)를 알려 두는 곳.
+ * 하단 스낵바·토스트는 이 값 위에 떠서 버튼을 가리지 않는다. 화면이 사라지면 지워진다. 여러 개면 가장 높은 것.
+ */
+object BottomBars {
+    private val tops = mutableStateMapOf<Any, Dp>()
+    val top: Dp get() = tops.values.maxOrNull() ?: 0.dp
+    internal fun set(key: Any, height: Dp) { tops[key] = height }
+    internal fun remove(key: Any) { tops.remove(key) }
+}
+
+/**
+ * 이 영역의 높이를 [BottomBars] 에 등록한다. [trimTop] 은 영역 안에서 버튼 윗선 위쪽의 빈 여백 (장바구니 바의 위 패딩 12 등).
+ */
+@Composable
+fun Modifier.registerBottomBar(trimTop: Dp = 0.dp): Modifier {
+    val key = remember { Any() }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    androidx.compose.runtime.DisposableEffect(key) { onDispose { BottomBars.remove(key) } }
+    return onSizeChanged { BottomBars.set(key, with(density) { it.height.toDp() } - trimTop) }
 }
 
 /** 스낵바 앞의 24 원형 아이콘: 성공은 초록 체크, 오류는 빨간 느낌표 (Figma) */
@@ -113,8 +140,10 @@ class OrmoSnackbarState {
 fun OrmoSnackbarHost(
     state: OrmoSnackbarState,
     modifier: Modifier = Modifier,
-    bottomOffset: Dp = Space.s16,
+    /** null 이면 화면 아래의 버튼 영역([registerBottomBar])을 피해 그 **위 [SNACKBAR_GAP]** 에 띄운다 (버튼이 없으면 홈 인디케이터 위 16) */
+    bottomOffset: Dp? = null,
 ) {
+    val offset = bottomOffset ?: if (BottomBars.top > 0.dp) BottomBars.top + SNACKBAR_GAP else com.ormo.customer.ui.theme.bottomInset() + Space.s16
     val msg = state.current?.takeUnless { it.atTop } // 위쪽 토스트는 OrmoTopToastHost 가 그린다
     LaunchedEffect(state.current) {
         val m = state.current
@@ -123,7 +152,7 @@ fun OrmoSnackbarHost(
             state.dismiss(m)
         }
     }
-    Box(modifier.fillMaxWidth().padding(horizontal = Space.s16).padding(bottom = bottomOffset), contentAlignment = Alignment.BottomCenter) {
+    Box(modifier.fillMaxWidth().padding(horizontal = Space.s16).padding(bottom = offset), contentAlignment = Alignment.BottomCenter) {
         AnimatedVisibility(
             visible = msg != null,
             enter = fadeIn(tween(150)) + slideInVertically(tween(150)) { it / 2 },
@@ -157,41 +186,50 @@ private fun SnackbarSurface(msg: SnackbarMessage, onDismiss: () -> Unit, hug: Bo
     val c = Ormo.colors
     // Figma: 알약(반경 full) · 앞에 24 원형 아이콘 · 글자 흰색. 위쪽 토스트는 글자 폭에 맞추고, 아래쪽은 좌우 16 여백 안에서 넓게.
     val shape = androidx.compose.foundation.shape.RoundedCornerShape(percent = 50)
+    val hasAction = msg.actionLabel != null
     Row(
         (if (hug) Modifier else Modifier.fillMaxWidth())
             .heightIn(min = 48.dp)
             .ormoShadow(shadowSmall(c), shape)
             .clip(shape)
             .background(c.fillNeutral)
-            .padding(start = Space.s12, end = Space.s24, top = Space.s12, bottom = Space.s12)
+            // 되돌리기 스낵바(Figma 2.3): 앞 아이콘 없이 글자 + 오른쪽 끝의 작은 알약 버튼. 그 밖의 토스트: 앞에 24 원형 아이콘.
+            .padding(start = if (hasAction) Space.s20 else Space.s12, end = if (hasAction) Space.s8 else Space.s24, top = Space.s8, bottom = Space.s8)
             .semantics { liveRegion = LiveRegionMode.Polite },
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Space.s8),
+        // Figma: 아이콘 → 글자 간격 12 (C-07)
+        horizontalArrangement = Arrangement.spacedBy(if (hasAction) Space.s8 else Space.s12),
     ) {
-        Box(
-            Modifier.size(24.dp).clip(androidx.compose.foundation.shape.CircleShape).background(if (msg.kind == SnackbarKind.Error) c.fillDanger else c.fillSuccess),
-            contentAlignment = Alignment.Center,
-        ) {
-            androidx.compose.material3.Icon(
-                if (msg.kind == SnackbarKind.Error) OrmoIcons.Alert else OrmoIcons.Check,
-                contentDescription = null,
-                tint = c.textOnFill,
-                modifier = Modifier.size(16.dp),
-            )
+        if (!hasAction) {
+            if (msg.kind == SnackbarKind.Error) {
+                // 오류: DS Icon/alert-circle 24 (Icon/Danger 면, 느낌표는 구멍)
+                androidx.compose.material3.Icon(OrmoIcons.Alert, contentDescription = null, tint = c.iconDanger, modifier = Modifier.size(24.dp))
+            } else {
+                Box(
+                    Modifier.size(24.dp).clip(androidx.compose.foundation.shape.CircleShape).background(c.fillSuccess),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    androidx.compose.material3.Icon(OrmoIcons.Check, contentDescription = null, tint = c.textOnFill, modifier = Modifier.size(16.dp))
+                }
+            }
         }
-        Text(msg.text, style = OrmoType.bodyMdMedium, color = c.textOnFill, modifier = if (hug) Modifier else Modifier.weight(1f))
+        Text(msg.text, style = OrmoType.bodyMdMedium, color = c.textOnFill, modifier = if (hug) Modifier.padding(vertical = Space.s4) else Modifier.weight(1f).padding(vertical = Space.s4))
         if (msg.actionLabel != null) {
-            Text(
-                msg.actionLabel,
-                style = OrmoType.bodySmSemibold,
-                color = Base.Blue200,
-                modifier = Modifier
-                    .padding(start = Space.s16)
-                    .clickable {
+            Box(
+                Modifier
+                    .padding(start = Space.s4)
+                    .heightIn(min = 32.dp)
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(percent = 50))
+                    .background(c.textOnFill.copy(alpha = 0.16f))
+                    .clickable(role = androidx.compose.ui.semantics.Role.Button) {
                         msg.onAction?.invoke()
                         onDismiss()
-                    },
-            )
+                    }
+                    .padding(horizontal = Space.s12),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(msg.actionLabel, style = OrmoType.bodySmSemibold, color = c.textOnFill, maxLines = 1)
+            }
         }
     }
 }
@@ -213,7 +251,7 @@ fun SkeletonBlock(modifier: Modifier = Modifier, shape: Shape = RoundedCornerSha
             .clip(shape)
             .background(
                 Brush.horizontalGradient(
-                    colors = listOf(c.bgLower, Color.White.copy(alpha = 0.7f), c.bgLower),
+                    colors = listOf(c.bgLower, c.shimmer, c.bgLower),
                     startX = x * 400f,
                     endX = x * 400f + 400f,
                 ),

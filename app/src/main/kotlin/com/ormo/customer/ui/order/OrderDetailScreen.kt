@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -18,6 +19,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import com.ormo.customer.ui.components.OrmoIcons
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -212,22 +216,24 @@ fun OrderDetailScreen(
         }
     }
     val order = ui.order
+    val view = order?.let { OrderDetailRules.view(it) }
+    // 하단 CTA 는 화면 위에 떠 있다 — 스크롤 내용은 화면 끝까지 이어지고 끝에 CTA 높이만큼만 비운다
+    var ctaHeight by remember { mutableStateOf(0.dp) }
+    val hasCta = view != null && !(view.cancel == CancelButton.HIDDEN && view.actions.isEmpty())
+    if (!hasCta && ctaHeight != 0.dp) ctaHeight = 0.dp
 
     Box(Modifier.fillMaxSize().background(c.bgDefault)) {
         Column(Modifier.fillMaxSize()) {
             OrmoTopNav(title = "주문 상세", onBack = onBack)
             when {
-                order == null && ui.failed -> Column(
-                    Modifier.weight(1f).fillMaxWidth().padding(Space.pageMargin),
-                    verticalArrangement = Arrangement.spacedBy(Space.s8, Alignment.CenterVertically),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text("주문 정보를 불러오지 못했어요", style = OrmoType.bodyXlBold, color = c.textPrimary, modifier = Modifier.semantics { heading() })
-                    OrmoButton("다시 시도", vm::retry, Modifier.padding(top = Space.s16), kind = ButtonKind.WeakNeutral, size = ButtonSize.M)
-                }
-                order == null -> Box(Modifier.weight(1f))
+                order == null && ui.failed -> com.ormo.customer.ui.components.OrmoResult(
+                    icon = OrmoIcons.WifiOff,
+                    title = "주문 정보를 불러오지 못했어요",
+                    modifier = Modifier.weight(1f),
+                    action = "다시 시도" to vm::retry,
+                )
+                order == null || view == null -> Box(Modifier.weight(1f))
                 else -> {
-                    val view = OrderDetailRules.view(order)
                     Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                         DetailHeader(order, view)
                         // Figma: 구분 띠(12) 뒤 12 여백, 섹션 사이도 앞뒤 12
@@ -242,19 +248,24 @@ fun OrderDetailScreen(
                         PaymentInfoBlock(order)
                         Spacer(Modifier.height(Space.s24))
                         if (vm.fake != null) DevPanel(order, vm)
+                        Spacer(Modifier.height(ctaHeight))
                     }
-                    DetailBottom(
-                        view = view,
-                        cancelling = ui.cancelling,
-                        onCancel = vm::askCancel,
-                        onReorder = vm::reorder,
-                        onReceipt = { onReceipt(order.id) },
-                        onBrowse = { onBrowseMenu(order.storeId) },
-                    )
                 }
             }
         }
-        OrmoSnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter), bottomOffset = 120.dp)
+        if (order != null && view != null) {
+            DetailBottom(
+                view = view,
+                cancelling = ui.cancelling,
+                onCancel = vm::askCancel,
+                onReorder = vm::reorder,
+                onReceipt = { onReceipt(order.id) },
+                onBrowse = { onBrowseMenu(order.storeId) },
+                modifier = Modifier.align(Alignment.BottomCenter),
+                onHeightChange = { ctaHeight = it },
+            )
+        }
+        OrmoSnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
     }
 
     if (ui.confirmCancel) {
@@ -338,9 +349,11 @@ private fun DetailBottom(
     onReorder: () -> Unit,
     onReceipt: () -> Unit,
     onBrowse: () -> Unit,
+    modifier: Modifier = Modifier,
+    onHeightChange: (androidx.compose.ui.unit.Dp) -> Unit = {},
 ) {
     if (view.cancel == CancelButton.HIDDEN && view.actions.isEmpty()) return
-    BottomCta {
+    BottomCta(modifier, onHeightChange = onHeightChange) {
         when (view.cancel) {
             CancelButton.ENABLED -> OrmoButton("주문 취소하기", onCancel, Modifier.fillMaxWidth(), kind = ButtonKind.WeakCritical, size = ButtonSize.XL, loading = cancelling)
             CancelButton.DISABLED -> OrmoButton("주문 취소하기", {}, Modifier.fillMaxWidth(), kind = ButtonKind.WeakCritical, size = ButtonSize.XL, enabled = false)
@@ -350,8 +363,9 @@ private fun DetailBottom(
             Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                 view.actions.forEach { a ->
                     when (a) {
-                        OrderAction.REORDER -> OrmoButton("재주문", onReorder, Modifier.weight(1f), kind = ButtonKind.WeakBrand, size = ButtonSize.XL)
-                        OrderAction.VIEW_RECEIPT -> OrmoButton("영수증 보기", onReceipt, Modifier.weight(2f), size = ButtonSize.XL)
+                        OrderAction.REORDER -> OrmoButton("재주문", onReorder, Modifier.weight(127f), kind = ButtonKind.WeakBrand, size = ButtonSize.XL)
+                        // Figma 4.3.4(375): 보조 [재주문] 127 · 주 [영수증 보기] 200 — 고정 폭이 아니라 비율로 나눠 좁은 폰에서도 한 줄로 보이게
+                        OrderAction.VIEW_RECEIPT -> OrmoButton("영수증 보기", onReceipt, Modifier.weight(if (view.actions.size > 1) 200f else 1f), size = ButtonSize.XL)
                         OrderAction.PICK_OTHER_MENU -> OrmoButton("다른 메뉴 고르기", onBrowse, Modifier.weight(1f), size = ButtonSize.XL)
                     }
                 }

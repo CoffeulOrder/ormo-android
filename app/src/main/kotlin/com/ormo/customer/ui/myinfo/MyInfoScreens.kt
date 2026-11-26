@@ -19,6 +19,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -66,6 +68,7 @@ import com.ormo.domain.auth.PasswordFailure
 import com.ormo.domain.profile.MyInfoRow
 import com.ormo.domain.profile.MyInfoRules
 import com.ormo.domain.profile.NotificationSwitch
+import com.ormo.domain.profile.OsOffNotice
 import com.ormo.domain.profile.WithdrawFailure
 import com.ormo.domain.profile.WithdrawFormState
 import com.ormo.domain.profile.WithdrawGate
@@ -137,7 +140,7 @@ class MyInfoViewModel(private val c: AppContainer) : ViewModel() {
     }
 }
 
-/** 내 정보 (디자인 5.1.1 / Figma): 이름·이메일·학교 카드, 행 6개(주문 내역 · 비밀번호 바꾸기 · 알림 설정 · 약관 및 정책 · 로그아웃 · 탈퇴하기) */
+/** 내 정보 (디자인 5.1.1 / Figma): 이름·이메일·학교 카드, 행 6개(주문 내역 · 비밀번호 바꾸기 · 권한 설정 · 약관 및 정책 · 로그아웃 · 탈퇴하기) */
 @Composable
 fun MyInfoScreen(
     vm: MyInfoViewModel,
@@ -175,7 +178,7 @@ fun MyInfoScreen(
                     when (row) {
                         MyInfoRow.ORDER_HISTORY -> MyInfoItem("주문 내역", onClick = onOrders)
                         MyInfoRow.CHANGE_PASSWORD -> MyInfoItem("비밀번호 바꾸기", onClick = onPassword)
-                        MyInfoRow.NOTIFICATIONS -> MyInfoItem("알림 설정", description = view.notificationRow.description, onClick = onNotifications)
+                        MyInfoRow.NOTIFICATIONS -> MyInfoItem("권한 설정", description = view.notificationRow.description, onClick = onNotifications)
                         MyInfoRow.TERMS_AND_POLICY -> MyInfoItem("약관 및 정책", onClick = onLegal)
                         MyInfoRow.LOGOUT -> MyInfoItem("로그아웃", onClick = { confirmLogout = true })
                         MyInfoRow.WITHDRAW -> MyInfoItem("탈퇴하기", muted = true, onClick = { vm.checkWithdraw(onWithdraw) })
@@ -418,10 +421,23 @@ fun WithdrawScreen(vm: WithdrawViewModel, onBack: () -> Unit, onOrders: () -> Un
     }
 }
 
-// ───────────── 5.5.1 알림 설정 ─────────────
+// ───────────── 5.5.1 권한 설정 ─────────────
+
+/** 휴대폰의 대략적 위치 권한이 켜져 있는가 (화면에 들어올 때마다·설정에서 돌아올 때마다 다시 확인) */
+fun osLocationGranted(context: Context): Boolean =
+    androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) ==
+        android.content.pm.PackageManager.PERMISSION_GRANTED
+
+/** 휴대폰 설정 > ORMO (위치 권한은 여기서 켠다) */
+fun openAppDetailsSettings(context: Context) {
+    runCatching {
+        context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+}
 
 class NotificationSettingsViewModel(private val c: AppContainer) : ViewModel() {
     val state = c.notificationSettings.state
+    val useLocation = c.locationPreference.useLocation
 
     init { viewModelScope.launch { c.notificationSettings.load() } }
 
@@ -429,6 +445,9 @@ class NotificationSettingsViewModel(private val c: AppContainer) : ViewModel() {
 
     /** 누르는 즉시 저장. 실패하면 그 스위치만 되돌아가고 스낵바 */
     fun toggle(s: NotificationSwitch, on: Boolean) { viewModelScope.launch { c.notificationSettings.toggle(s, on) } }
+
+    /** 내 위치 사용: 누르는 즉시 이 기기에 저장 (서버로 보내지 않는다) */
+    fun setUseLocation(on: Boolean) = c.locationPreference.set(on)
 
     companion object {
         fun factory(c: AppContainer) = object : ViewModelProvider.Factory {
@@ -439,55 +458,96 @@ class NotificationSettingsViewModel(private val c: AppContainer) : ViewModel() {
 }
 
 /**
- * 알림 설정 (디자인 5.5.1 / Figma): [주문 알림] [잠금 화면 실시간 현황] 스위치 — 누르는 즉시 저장, 저장 버튼 없음.
- * OS 알림이 꺼져 있으면 위에 주황 안내 상자(+ 설정 열기)를 보이고 스위치는 꺼진 채 비활성.
+ * 권한 설정 (디자인 5.5.1 / Figma, 이전 이름 '알림 설정'): **알림** 묶음 [주문 알림] [잠금 화면 실시간 현황], **위치** 묶음 [내 위치 사용] — 스위치는 누르는 즉시 저장, 저장 버튼 없음.
+ * - 휴대폰 알림이 꺼져 있으면 위에 주황 안내 상자(누르면 휴대폰 설정 > ORMO > 알림)를 보이고 알림 스위치는 꺼진 채 비활성.
+ * - 휴대폰 위치 권한이 꺼져 있으면 주황 안내 상자(→ 휴대폰 설정 > ORMO)를 보이고 '내 위치 사용'은 꺼진 채 비활성 (앱에서는 켤 수 없다). 알림 묶음은 그대로.
+ * - 내 위치 사용을 끄면 매장 목록에서 거리를 숨긴다 (1.1.1 위치 꺼짐과 같다).
  */
 @Composable
 fun NotificationSettingsScreen(vm: NotificationSettingsViewModel, onBack: () -> Unit) {
     val c = Ormo.colors
     val context = LocalContext.current
     val state by vm.state.collectAsState()
+    val useLocation by vm.useLocation.collectAsState()
+    var locationGranted by remember { mutableStateOf(osLocationGranted(context)) }
     val snackbar = remember { OrmoSnackbarState() }
-    OnResume { vm.setOs(osNotificationsGranted(context)) }
+    OnResume {
+        vm.setOs(osNotificationsGranted(context))
+        locationGranted = osLocationGranted(context)
+    }
     LaunchedEffect(state.failed) {
         if (state.failed != null) snackbar.show("저장하지 못했어요. 다시 시도해주세요", SnackbarDurations.PARTIAL_FAILURE)
     }
     Box(Modifier.fillMaxSize().background(c.bgDefault)) {
         Column(Modifier.fillMaxSize()) {
-            OrmoTopNav(title = "알림 설정", onBack = onBack)
-            state.osOffNotice?.let { n ->
-                Row(
-                    Modifier.padding(horizontal = Space.pageMargin, vertical = Space.s8).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.fillWarningWeak)
-                        .clickable(role = Role.Button, onClickLabel = "설정 열기") { openAppNotificationSettings(context) }.padding(Space.s16),
-                    horizontalArrangement = Arrangement.spacedBy(Space.s8),
-                ) {
-                    Box(Modifier.padding(top = 2.dp).size(18.dp).clip(CircleShape).background(c.textWarning), contentAlignment = Alignment.Center) {
-                        Text("!", style = OrmoType.bodyXsBold, color = c.textOnFill)
-                    }
-                    Column(verticalArrangement = Arrangement.spacedBy(Space.s4)) {
-                        Text(n.title, style = OrmoType.bodySmSemibold, color = c.textWarning)
-                        Text(n.body, style = OrmoType.bodySmRegular, color = c.textSecondary)
+            OrmoTopNav(title = "권한 설정", onBack = onBack)
+            Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                val notices = listOfNotNull(
+                    state.osOffNotice?.let { it to { openAppNotificationSettings(context) } },
+                    if (!locationGranted) OsOffNotice("위치 권한이 꺼져 있어요", "매장까지 거리와 도보 시간을 보려면\n휴대폰 설정에서 위치를 켜주세요") to { openAppDetailsSettings(context) } else null,
+                )
+                if (notices.isNotEmpty()) {
+                    // Figma Callout Wrap: 좌우 16 · 위 16 · 아래 8, 안내 상자 사이 8
+                    Column(Modifier.padding(start = Space.s16, end = Space.s16, top = Space.s16, bottom = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+                        notices.forEach { (n, open) -> WarningCallout(n.title, n.body, open) }
                     }
                 }
-            }
-            SettingRow("주문 알림", "음료가 준비되거나\n주문 상태가 변경되면 알려드려요", state.isOn(NotificationSwitch.ORDER_PUSH), state.isEnabled(NotificationSwitch.ORDER_PUSH)) {
-                vm.toggle(NotificationSwitch.ORDER_PUSH, it)
-            }
-            SettingRow("잠금 화면 실시간 현황", "주문 상태를 잠금 화면에서 확인할 수 있어요", state.isOn(NotificationSwitch.LIVE), state.isEnabled(NotificationSwitch.LIVE)) {
-                vm.toggle(NotificationSwitch.LIVE, it)
+                SettingHeader("알림")
+                SettingRow("주문 알림", "음료가 준비되거나\n주문 상태가 변경되면 알려드려요", state.isOn(NotificationSwitch.ORDER_PUSH), state.isEnabled(NotificationSwitch.ORDER_PUSH)) {
+                    vm.toggle(NotificationSwitch.ORDER_PUSH, it)
+                }
+                SettingRow("잠금 화면 실시간 현황", "주문 상태를 잠금 화면에서 확인할 수 있어요", state.isOn(NotificationSwitch.LIVE), state.isEnabled(NotificationSwitch.LIVE)) {
+                    vm.toggle(NotificationSwitch.LIVE, it)
+                }
+                SettingHeader("위치")
+                SettingRow("내 위치 사용", "매장까지 거리와 도보 시간을 보여줘요", locationGranted && useLocation, locationGranted) { vm.setUseLocation(it) }
             }
         }
         OrmoSnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter), bottomOffset = Space.s32)
     }
 }
 
+/** 설정 묶음 제목 (Figma List Header): 좌우 24 · 위 16 · 아래 8, body-lg Semibold + Text/Secondary */
+@Composable
+private fun SettingHeader(title: String) {
+    Text(
+        title,
+        style = OrmoType.bodyLgSemibold,
+        color = Ormo.colors.textSecondary,
+        modifier = Modifier.fillMaxWidth().padding(start = Space.s24, end = Space.s24, top = Space.s16, bottom = Space.s8).semantics { heading() },
+    )
+}
+
+/** 주황 안내 상자 (Figma Callout · Warning): 아이콘 20 + 굵은 제목 + 안내, 누르면 휴대폰 설정 */
+@Composable
+private fun WarningCallout(title: String, body: String, onOpen: () -> Unit) {
+    val c = Ormo.colors
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.fillWarningWeak)
+            .clickable(role = Role.Button, onClickLabel = "설정 열기", onClick = onOpen)
+            .padding(horizontal = Space.s16, vertical = Space.s12),
+        horizontalArrangement = Arrangement.spacedBy(Space.s8),
+    ) {
+        Icon(com.ormo.customer.ui.components.OrmoIcons.Alert, null, tint = c.iconWarning, modifier = Modifier.size(20.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
+            Text(title, style = OrmoType.bodySmBold, color = c.textWarning)
+            Text(body, style = OrmoType.bodySmRegular, color = c.textSecondary)
+        }
+    }
+}
+
+/** 설정 한 줄 (Figma List Item): 좌우 24 · 위아래 16 · 간격 12. 꺼진(비활성) 줄은 제목·설명이 모두 Text/Quaternary */
 @Composable
 private fun SettingRow(title: String, body: String, checked: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
     val c = Ormo.colors
-    Row(Modifier.fillMaxWidth().padding(horizontal = Space.s24, vertical = Space.s16), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
-            Text(title, style = OrmoType.bodyMdMedium, color = c.textPrimary)
-            Text(body, style = OrmoType.bodySmRegular, color = c.textSecondary)
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = Space.s24, vertical = Space.s16),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Space.s12),
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
+            Text(title, style = OrmoType.bodyMdMedium, color = if (enabled) c.textPrimary else c.textQuaternary)
+            Text(body, style = OrmoType.bodySmRegular, color = if (enabled) c.textTertiary else c.textQuaternary)
         }
         OrmoSwitch(checked = checked, onCheckedChange = onChange, enabled = enabled, contentDescription = title)
     }

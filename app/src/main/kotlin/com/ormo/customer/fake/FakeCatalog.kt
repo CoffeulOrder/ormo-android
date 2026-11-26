@@ -104,9 +104,9 @@ class FakeStoreDirectory(private val latencyMs: Long = 400) : StoreDirectory {
         delay(latencyMs)
         val now = LocalDateTime.now()
         return listOf(
-            Store("c1", "범석관 카페", StoreStatus.Open, menuCount = 12, waitingCount = 3, address = "경기도 성남시 수정구 상성대로 567번길 1층 일부호(양지동)", schoolName = "을지대학교"),
-            Store("c2", "학생회관 카페", StoreStatus.Break(now.plusMinutes(30)), menuCount = 4, address = "경기도 성남시 수정구 산성대로 553 학생회관 1층", schoolName = "을지대학교"),
-            Store("c3", "도서관 카페", StoreStatus.Closed(now.plusDays(1).withHour(8).withMinute(30).withSecond(0).withNano(0)), menuCount = 2, address = "경기도 성남시 수정구 산성대로 553 도서관 로비", schoolName = "을지대학교"),
+            Store("c1", "범석관 카페", StoreStatus.Open, menuCount = 12, waitingCount = 3, latitude = 37.4502, longitude = 127.1292, address = "경기도 성남시 수정구 상성대로 567번길 1층 일부호(양지동)", schoolName = "을지대학교"),
+            Store("c2", "학생회관 카페", StoreStatus.Break(now.plusMinutes(30)), menuCount = 4, latitude = 37.4509, longitude = 127.1301, address = "경기도 성남시 수정구 산성대로 553 학생회관 1층", schoolName = "을지대학교"),
+            Store("c3", "도서관 카페", StoreStatus.Closed(now.plusDays(1).withHour(8).withMinute(30).withSecond(0).withNano(0)), menuCount = 2, latitude = 37.4497, longitude = 127.1285, address = "경기도 성남시 수정구 산성대로 553 도서관 로비", schoolName = "을지대학교"),
             Store("c4", "신관 카페", StoreStatus.Open, menuCount = 0, address = "경기도 성남시 수정구 산성대로 553 신관 1층", schoolName = "을지대학교"),
         )
     }

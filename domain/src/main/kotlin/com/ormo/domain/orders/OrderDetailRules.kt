@@ -47,6 +47,8 @@ object OrderDetailRules {
     const val UNCLAIMED_NOTICE = "환불이 필요하면 매장에 문의해주세요"
     const val AUTO_REJECTED_REASON = "매장이 주문을 확인하지 못했어요"
 
+    /** 진행 중(확인·제작·픽업 대기)이 아닌 모든 상태의 하단 버튼: [재주문] / [영수증 보기] */
+    private val REORDER_RECEIPT = listOf(OrderAction.REORDER, OrderAction.VIEW_RECEIPT)
     val STEP_LABELS = listOf("주문 확인 중", "만드는 중", "픽업 대기", "픽업 완료")
     const val UNCLAIMED_LABEL = "미수령"
 
@@ -63,36 +65,37 @@ object OrderDetailRules {
                 order, "${n}주문을 픽업해주세요",
                 big = order.pickupNumber,
                 deadlineBox = order.deadline?.let { "${TimeFormat.clock(it, zone)}까지 받아주세요" },
+                cancel = CancelButton.DISABLED, // 픽업해주세요: 주문 취소 버튼은 있지만 누를 수 없다
             )
             OrderStatus.COMPLETED -> base(
                 order, "${n}주문을 픽업했어요",
-                actions = listOf(OrderAction.REORDER, OrderAction.VIEW_RECEIPT),
+                actions = REORDER_RECEIPT,
             )
             OrderStatus.REJECTED -> base(
                 order, "매장에서 주문을 받지 못했어요",
                 reasonBox = reasonOf(order), infoBox = REFUND_NOTICE,
-                actions = listOf(OrderAction.PICK_OTHER_MENU),
+                actions = REORDER_RECEIPT,
             )
             OrderStatus.CANCELED ->
                 if (order.canceledBy == CancelActor.STORE) {
                     base(
                         order, "매장 사정으로 주문이 취소됐어요",
                         reasonBox = reasonOf(order), infoBox = REFUND_NOTICE,
-                        actions = listOf(OrderAction.PICK_OTHER_MENU),
+                        actions = REORDER_RECEIPT,
                     )
                 } else {
-                    // 직접 취소: 단계 바 숨김, 안내 상자에 환불 안내, 영수증은 취소 영수증
-                    base(order, "주문을 취소했어요", infoBox = CANCELED_NOTICE, actions = listOf(OrderAction.VIEW_RECEIPT))
+                    // 직접 취소: 단계 바 숨김, 안내 상자에 환불 안내, 영수증은 취소 영수증, 다시 담을 수 있게 재주문
+                    base(order, "주문을 취소했어요", infoBox = CANCELED_NOTICE, actions = REORDER_RECEIPT) // Figma 4.3.4: [재주문](보조) + [영수증 보기]
                 }
             OrderStatus.REFUNDED -> base(
                 order, "${formatWon(order.refundAmount ?: order.totalAmount)}을 환불했어요",
                 infoBox = REFUNDED_NOTICE,
-                actions = listOf(OrderAction.VIEW_RECEIPT),
+                actions = REORDER_RECEIPT,
             )
             OrderStatus.UNCLAIMED -> base(
                 order, "픽업 예정 시간이 지났어요",
                 infoBox = UNCLAIMED_NOTICE,
-                actions = listOf(OrderAction.REORDER),
+                actions = REORDER_RECEIPT,
             )
             // 고객에게 보이지 않는 상태 (3.2.2 에서 대기 / 주문 내역에서도 빠짐)
             OrderStatus.PENDING_PAYMENT -> base(order, "결제를 확인하고 있어요")

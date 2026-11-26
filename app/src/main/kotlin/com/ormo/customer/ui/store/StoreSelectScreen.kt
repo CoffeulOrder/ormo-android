@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -44,14 +45,11 @@ import com.ormo.customer.ui.components.ButtonKind
 import com.ormo.customer.ui.components.ButtonSize
 import com.ormo.customer.ui.components.DelayedSkeleton
 import com.ormo.customer.ui.components.InfoRow
-import com.ormo.customer.ui.components.MapPin
 import com.ormo.customer.ui.components.OrmoBadge
 import com.ormo.customer.ui.components.OrmoBottomSheet
 import com.ormo.customer.ui.components.OrmoButton
 import com.ormo.customer.ui.components.OrmoIcons
 import com.ormo.customer.ui.components.OrmoTopNav
-import com.ormo.customer.ui.components.ImagePlaceholder
-import com.ormo.customer.ui.components.Shoes
 import com.ormo.customer.ui.components.SkeletonBlock
 import com.ormo.customer.ui.theme.Base
 import com.ormo.customer.ui.theme.Ormo
@@ -86,6 +84,8 @@ data class StoreSelectUi(
 class StoreSelectViewModel(
     private val repo: StoreRepository,
     private val cart: CartHolder,
+    /** 위치 관련 기기 설정 (내 위치 사용 · 약관 동의 · 안내 시트를 보여 줬는가) */
+    val locationPref: com.ormo.customer.session.PrefsLocationPreference,
     private val accountKey: () -> String,
 ) : ViewModel() {
     private val _ui = MutableStateFlow(StoreSelectUi())
@@ -133,7 +133,7 @@ class StoreSelectViewModel(
     companion object {
         fun factory(c: AppContainer) = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T = StoreSelectViewModel(c.stores, c.cart) { c.accountKey } as T
+            override fun <T : ViewModel> create(modelClass: Class<T>): T = StoreSelectViewModel(c.stores, c.cart, c.locationPreference) { c.accountKey } as T
         }
     }
 }
@@ -160,6 +160,44 @@ fun StoreSelectScreen(
     LaunchedEffect(Unit) { vm.goToMenu.collect(onStoreChosen) }
     if (!hideBack) BackHandler(onBack = onBack)
 
+    // ── 위치 (Figma 1.1.1 위치 권한 · 5.5.1) ──
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val useLocation by vm.locationPref.useLocation.collectAsState()
+    val consented by vm.locationPref.consented.collectAsState()
+    val asked by vm.locationPref.asked.collectAsState()
+    var osGranted by remember { androidx.compose.runtime.mutableStateOf(com.ormo.customer.session.hasCoarseLocationPermission(context)) }
+    var deniedOnce by remember { androidx.compose.runtime.mutableStateOf(false) }
+    var showAsk by remember { androidx.compose.runtime.mutableStateOf(false) }
+    var showTerms by remember { androidx.compose.runtime.mutableStateOf(false) }
+    // 설정에서 돌아올 때마다 휴대폰 위치 권한을 다시 확인한다
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) osGranted = com.ormo.customer.session.hasCoarseLocationPermission(context)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
+        osGranted = granted
+        deniedOnce = !granted
+    }
+    // 처음 들어오면 (한 번도 안 물었고 권한이 없으면) 위치 권한 안내 시트를 한 번만 띄운다
+    LaunchedEffect(ui.loading, ui.failed, asked, osGranted) {
+        if (!ui.loading && !ui.failed && !asked && !osGranted) showAsk = true
+    }
+    val locationOn = osGranted && useLocation
+    var userLocation by remember { androidx.compose.runtime.mutableStateOf<Pair<Double, Double>?>(null) }
+    LaunchedEffect(locationOn) { userLocation = if (locationOn) com.ormo.customer.session.currentApproxLocation(context) else null }
+    val startLocation = {
+        when {
+            !consented -> showAsk = true
+            !osGranted && deniedOnce -> com.ormo.customer.ui.myinfo.openAppDetailsSettings(context) // 이미 한 번 거절 → 휴대폰 설정에서 켠다
+            !osGranted -> permissionLauncher.launch(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+            else -> vm.locationPref.set(true)
+        }
+    }
+
     Column(Modifier.fillMaxSize().background(c.bgDefault)) {
         OrmoTopNav(onBack = if (hideBack) null else onBack)
         Column(Modifier.padding(start = Space.s20, end = Space.s20, top = 20.dp, bottom = 10.dp)) { // Figma: 제목 글자 y=126, 학교 이름 아래 카드까지 26
@@ -168,15 +206,12 @@ fun StoreSelectScreen(
         }
         Box(Modifier.height(16.dp))
         when {
-            ui.failed -> Column(
-                Modifier.fillMaxSize().padding(horizontal = Space.pageMargin),
-                verticalArrangement = Arrangement.spacedBy(Space.s8, Alignment.CenterVertically),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text("매장 정보를 불러오지 못했어요", style = OrmoType.bodyLgSemibold, color = c.textPrimary)
-                Text("잠시 후 다시 시도해주세요", style = OrmoType.bodyMdRegular, color = c.textSecondary)
-                OrmoButton("다시 시도", vm::load, Modifier.padding(top = Space.s16), kind = ButtonKind.WeakNeutral, size = ButtonSize.M)
-            }
+            ui.failed -> com.ormo.customer.ui.components.OrmoResult(
+                icon = OrmoIcons.WifiOff,
+                title = "매장 정보를 불러오지 못했어요",
+                body = "잠시 후 다시 시도해주세요",
+                action = "다시 시도" to vm::load,
+            )
             else -> DelayedSkeleton(
                 loading = ui.loading,
                 skeleton = {
@@ -186,7 +221,11 @@ fun StoreSelectScreen(
                 },
             ) {
                 LazyColumn(Modifier.fillMaxSize()) {
-                    items(ui.stores, key = { it.id }) { store -> StoreCard(store, nowLocal, onClick = { vm.onStoreClicked(store) }) }
+                    // 위치가 꺼져 있으면 목록 위에 안내 (Figma 1.1.1 위치 꺼짐): 안내 시트를 이미 한 번 본 뒤에만
+                    if (!locationOn && asked) item(key = "location-callout") { LocationCallout(onTurnOn = startLocation) }
+                    items(ui.stores, key = { it.id }) { store ->
+                        StoreCard(store, nowLocal, distance = StoreRules.distanceLabel(store, userLocation?.first, userLocation?.second), onClick = { vm.onStoreClicked(store) })
+                    }
                 }
             }
         }
@@ -195,41 +234,120 @@ fun StoreSelectScreen(
     ui.selected?.let { store ->
         StoreSheet(store, vm, ui.conflict, nowLocal, onInfo = { vm.dismissSheet(); onInfo(store.id) })
     }
+
+    if (showAsk) {
+        LocationAskSheet(
+            onDismiss = { showAsk = false; vm.locationPref.markAsked() }, // 한 번 답하면 다시 자동으로 띄우지 않는다
+            onOpenTerms = { showTerms = true },
+            onAgree = {
+                showAsk = false
+                vm.locationPref.setConsented(true)
+                vm.locationPref.markAsked()
+                if (!osGranted) permissionLauncher.launch(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+            },
+        )
+    }
+    if (showTerms) {
+        // TODO(spec 0.2.5 · 1.1.1): 위치기반서비스 이용약관 전문 화면은 주소 확정 전이라 안내만 띄운다
+        com.ormo.customer.ui.components.OrmoDialog(
+            title = "위치기반서비스 이용약관",
+            body = "약관 전문 페이지는 준비 중이에요",
+            confirmLabel = "확인",
+            onConfirm = { showTerms = false },
+        )
+    }
+}
+
+/** 위치가 꺼져 있을 때 목록 위 안내 (Figma Callout · Warning): 아이콘 + '위치를 켜면 매장까지 거리를 볼 수 있어요' + [위치 켜기] */
+@Composable
+private fun LocationCallout(onTurnOn: () -> Unit) {
+    val c = Ormo.colors
+    Row(
+        Modifier
+            .padding(horizontal = Space.s20)
+            .padding(bottom = Space.s8)
+            .fillMaxWidth()
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
+            .background(c.fillWarningWeak)
+            .padding(horizontal = Space.s16, vertical = Space.s12),
+        horizontalArrangement = Arrangement.spacedBy(Space.s8),
+    ) {
+        Icon(OrmoIcons.Alert, null, tint = c.iconWarning, modifier = Modifier.size(20.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.s2)) {
+            Text("위치를 켜면 매장까지 거리를 볼 수 있어요", style = OrmoType.bodySmRegular, color = c.textSecondary)
+            Text(
+                "위치 켜기",
+                style = OrmoType.bodySmBold,
+                color = c.textWarning,
+                modifier = Modifier.clickable(role = Role.Button, onClick = onTurnOn),
+            )
+        }
+    }
+}
+
+/**
+ * 위치 권한 안내 시트 (Figma 1.1.1 · 0.2.5 약관 시트와 같은 틀): '가까운 매장을 알려드릴게요' + 위치 아이콘 + '[선택] 위치기반서비스 이용약관 동의 >' + [동의하기].
+ * 처음엔 체크하지 않아 [동의하기]가 꺼져 있다. [동의하기]를 누른 뒤에야 휴대폰 위치 권한 창을 띄운다. 바깥을 누르거나 아래로 내리면 닫히고 다시 자동으로 묻지 않는다.
+ */
+@Composable
+private fun LocationAskSheet(onDismiss: () -> Unit, onOpenTerms: () -> Unit, onAgree: () -> Unit) {
+    val c = Ormo.colors
+    var agreed by remember { androidx.compose.runtime.mutableStateOf(false) }
+    com.ormo.customer.ui.components.OrmoBottomSheet(
+        onDismissRequest = onDismiss,
+        title = "가까운 매장을 알려드릴게요",
+        footer = { OrmoButton("동의하기", onAgree, Modifier.fillMaxWidth(), size = ButtonSize.XL, enabled = agreed) },
+    ) {
+        Box(Modifier.fillMaxWidth().padding(vertical = Space.s24), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(64.dp).clip(androidx.compose.foundation.shape.CircleShape).background(c.fillBrandWeak), contentAlignment = Alignment.Center) {
+                Icon(OrmoIcons.MapPin, null, tint = c.iconBrand, modifier = Modifier.size(32.dp))
+            }
+        }
+        com.ormo.customer.ui.components.TermsRow(
+            label = "[선택] 위치기반서비스 이용약관 동의",
+            checked = agreed,
+            onCheckedChange = { agreed = it },
+            onOpen = onOpenTerms,
+        )
+    }
 }
 
 /** 매장 카드: 패딩 16/20, 간격 12, 사진 90 (radius 8), 제목 body-md semibold + 상태 body-sm medium, 주소 body-sm, 거리·도보 (Figma Store Card) */
 @Composable
-private fun StoreCard(store: Store, now: LocalDateTime, onClick: () -> Unit) {
+private fun StoreCard(store: Store, now: LocalDateTime, distance: String?, onClick: () -> Unit) {
     val c = Ormo.colors
     val label = StoreRules.statusLabel(store.status, now)
     val dimmed = StoreRules.dimmed(store.status)
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable(role = Role.Button, onClick = onClick)
+            .clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = com.ormo.customer.ui.theme.pressIndication(), role = Role.Button, onClick = onClick)
             .padding(horizontal = Space.s20, vertical = Space.s16)
-            .semantics { contentDescription = "${store.displayName}, ${label.text}${label.detail?.let { ", $it" }.orEmpty()}" },
+            .semantics { contentDescription = "${store.displayName}, ${label.text}" },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Space.s12),
     ) {
         Column(Modifier.weight(1f).alpha(if (dimmed) 0.5f else 1f), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalAlignment = Alignment.CenterVertically) {
+            // 이름이 두 줄로 넘어가도 상태 글자는 **이름 첫 줄의 가운데**에 맞춘다 (상태 칸 높이 = 이름 한 줄 높이)
+            val nameLineHeight = with(androidx.compose.ui.platform.LocalDensity.current) { OrmoType.bodyMdSemibold.lineHeight.toDp() }
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalAlignment = Alignment.Top) {
                 Text(store.displayName, style = OrmoType.bodyMdSemibold, color = c.textPrimary, modifier = Modifier.weight(1f, fill = false))
-                Text(
-                    label.text,
-                    style = OrmoType.bodySmMedium,
-                    color = when (store.status) {
-                        is StoreStatus.Open -> c.textBrand
-                        is StoreStatus.Break -> c.textWarning
-                        else -> c.textTertiary
-                    },
-                    maxLines = 1,
-                )
+                Box(Modifier.height(nameLineHeight), contentAlignment = Alignment.Center) {
+                    Text(
+                        label.text,
+                        style = OrmoType.bodySmMedium,
+                        color = when (store.status) {
+                            is StoreStatus.Open -> c.textBrand
+                            is StoreStatus.Break -> c.textWarning
+                            else -> c.textTertiary
+                        },
+                        maxLines = 1,
+                    )
+                }
             }
-            label.detail?.let { Text(it, style = OrmoType.bodySmRegular, color = c.textTertiary) }
             store.address?.let { Text(it, style = OrmoType.bodySmRegular, color = c.textSecondary) }
-            // 거리·도보 시간은 위치 권한이 있을 때만 (권한 요청 연결 전: 표시 안 함)
-            StoreRules.distanceLabel(store, null, null)?.let { distance ->
+            // 거리·도보 시간은 위치가 켜져 있을 때만 (기기 안에서 계산)
+            distance?.let { distance ->
                 Row(horizontalArrangement = Arrangement.spacedBy(Space.s12), verticalAlignment = Alignment.CenterVertically) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
                         Icon(OrmoIcons.MapPin, null, tint = c.iconSecondary, modifier = Modifier.size(Size.iconMd))
@@ -275,15 +393,26 @@ private fun StoreSheet(store: Store, vm: StoreSelectViewModel, conflict: StoreCh
         onDismissRequest = vm::dismissSheet,
         footer = { OrmoButton("주문하기", vm::confirmSelected, Modifier.fillMaxWidth(), size = ButtonSize.XL) },
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8), modifier = Modifier.padding(bottom = Space.s16)) {
-            Text(store.displayName, style = OrmoType.bodyXlBold, color = c.textStrong, modifier = Modifier.weight(1f, fill = false))
-            OrmoBadge(
-                label.text,
-                when (store.status) { is StoreStatus.Open -> BadgeKind.Optional; is StoreStatus.Break -> BadgeKind.Warning; else -> BadgeKind.SoldOut },
-            )
-            Box(Modifier.weight(1f))
+        Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(Space.s8), modifier = Modifier.padding(bottom = Space.s16)) {
+            // 매장 이름은 줄바꿈(자르지 않는다). 상태 뱃지는 이름 오른쪽, **이름 맨 윗줄의 세로 가운데**에 맞춘다. (i) 는 맨 오른쪽
+            val firstLine = with(androidx.compose.ui.platform.LocalDensity.current) { OrmoType.bodyXlBold.lineHeight.toDp() }
+            Row(Modifier.weight(1f), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+                Text(
+                    store.displayName,
+                    style = OrmoType.bodyXlBold,
+                    color = c.textStrong,
+                    modifier = Modifier.weight(1f, fill = false).padding(top = (48.dp - firstLine) / 2),
+                )
+                Box(Modifier.padding(top = (48.dp - firstLine) / 2).height(firstLine), contentAlignment = Alignment.Center) {
+                    OrmoBadge(
+                        label.text,
+                        when (store.status) { is StoreStatus.Open -> BadgeKind.Optional; is StoreStatus.Break -> BadgeKind.Warning; else -> BadgeKind.SoldOut },
+                    )
+                }
+            }
             Box(Modifier.size(48.dp).clickable(role = Role.Button, onClickLabel = "매장 정보", onClick = onInfo), contentAlignment = Alignment.Center) {
-                Icon(OrmoIcons.Info, null, tint = c.iconTertiary, modifier = Modifier.size(Size.iconLg))
+                // 면(fill) 아이콘 (Figma Icon/info)
+                Icon(com.ormo.customer.ui.components.FigmaIcons.Info, null, tint = c.iconTertiary, modifier = Modifier.size(Size.iconLg))
             }
         }
         val i = info

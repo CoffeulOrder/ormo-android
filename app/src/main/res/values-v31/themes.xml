@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Android 12+ ½Ã½ºÅÛ ½ºÇÃ·¡½Ã: Èò ¹è°æ + ORMO ½Éº¼(ÄÅ¡¤±è). ÀÌ¾î¼­ ¾Û ¾È ½ºÇÃ·¡½Ã(0.0 ·Î°í ¸ð¼Ç)°¡ ³ª¿Â´Ù. -->
+    <!-- Android 12+ ì‹œìŠ¤í…œ ìŠ¤í”Œëž˜ì‹œ: í° ë°°ê²½ + íˆ¬ëª… ì•„ì´ì½˜. í° ì»µì´ ë¨¼ì € ë–´ë‹¤ê°€ ì•± ìŠ¤í”Œëž˜ì‹œ(0.0 ë¡œê³  ëª¨ì…˜)ì—ì„œ ë‹¤ë¥¸ í¬ê¸°ë¡œ ë‹¤ì‹œ ì‹œìž‘í•´ ë¡œê³ ê°€ í•œ ë²ˆ íŠ€ë˜ ë¬¸ì œ(QA F-001) í•´ê²° -->
     <style name="Theme.Ormo" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowSplashScreenBackground">#FFFFFF</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ormo_splash_mark</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ormo_splash_blank</item>
     </style>
 </resources>

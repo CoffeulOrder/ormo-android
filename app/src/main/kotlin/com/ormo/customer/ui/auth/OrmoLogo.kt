@@ -76,7 +76,7 @@ object LogoMotion {
 @Composable
 fun OrmoLogo(modifier: Modifier = Modifier, state: LogoMotionState = LogoMotion.FINAL) {
     Box(modifier.size(LOGO_WIDTH, LOGO_HEIGHT)) {
-        LogoLayer(R.drawable.ormo_logo_wordmark, 44.59f, 21.03f, 124.249f, 49.8105f, state.wordmark)
+        LogoLayer(R.drawable.ormo_logo_wordmark, 44.59f, 21.03f, 124.249f, 49.8105f, state.wordmark, tint = com.ormo.customer.ui.theme.Ormo.colors.logoInk) // 글자: 라이트 검정 · 다크 흰색
         LogoLayer(R.drawable.ormo_logo_cup, 1.89f, 23.10f, 52.9789f, 46.8309f, state.cup)
         LogoLayer(R.drawable.ormo_logo_steam_l, 20.33f, 8.32f, 10.862f, 14.5218f, state.steamLeft)
         LogoLayer(R.drawable.ormo_logo_steam_r, 32.31f, 2.02f, 14.2322f, 19.8977f, state.steamRight)
@@ -87,8 +87,9 @@ val LOGO_WIDTH: Dp = 170.dp
 val LOGO_HEIGHT: Dp = 72.dp
 
 @Composable
-private fun LogoLayer(res: Int, x: Float, y: Float, w: Float, h: Float, s: LogoLayerState) {
+private fun LogoLayer(res: Int, x: Float, y: Float, w: Float, h: Float, s: LogoLayerState, tint: androidx.compose.ui.graphics.Color? = null) {
     Image(
+        colorFilter = tint?.let { androidx.compose.ui.graphics.ColorFilter.tint(it) },
         painter = painterResource(res),
         contentDescription = null, // 장식: 로고 전체의 이름은 부르는 화면이 정한다
         modifier = Modifier
@@ -135,13 +136,14 @@ private fun MarkBadgeView(kind: MarkBadge, modifier: Modifier = Modifier) {
     val c = com.ormo.customer.ui.theme.Ormo.colors
     val bg = when (kind) { MarkBadge.Success -> c.fillSuccess; MarkBadge.Danger -> c.fillDanger; else -> c.fillNeutral }
     Box(
-        modifier.size(42.dp).clip(androidx.compose.foundation.shape.CircleShape).background(c.bgDefault),
+        // Figma: 배지 지름 36 안에 흰 테두리 3 (테두리가 안쪽) → 흰 원 36 안에 색 원 30 (C-13)
+        modifier.size(36.dp).clip(androidx.compose.foundation.shape.CircleShape).background(c.bgDefault),
         contentAlignment = androidx.compose.ui.Alignment.Center,
     ) {
-        Box(Modifier.size(36.dp).clip(androidx.compose.foundation.shape.CircleShape).background(bg), contentAlignment = androidx.compose.ui.Alignment.Center) {
+        Box(Modifier.size(30.dp).clip(androidx.compose.foundation.shape.CircleShape).background(bg), contentAlignment = androidx.compose.ui.Alignment.Center) {
             when (kind) {
-                MarkBadge.Success -> androidx.compose.material3.Icon(com.ormo.customer.ui.components.OrmoIcons.Check, null, tint = c.textOnFill, modifier = Modifier.size(24.dp))
-                MarkBadge.Danger -> androidx.compose.material3.Icon(com.ormo.customer.ui.components.OrmoIcons.Close, null, tint = c.textOnFill, modifier = Modifier.size(20.dp))
+                MarkBadge.Success -> androidx.compose.material3.Icon(com.ormo.customer.ui.components.OrmoIcons.Check, null, tint = c.textOnFill, modifier = Modifier.size(16.dp))
+                MarkBadge.Danger -> androidx.compose.material3.Icon(com.ormo.customer.ui.components.OrmoIcons.Close, null, tint = c.textOnFill, modifier = Modifier.size(16.dp))
                 else -> androidx.compose.foundation.Canvas(Modifier.size(20.dp)) {
                     val w = size.width
                     drawCircle(c.textOnFill, radius = w * 0.45f, style = androidx.compose.ui.graphics.drawscope.Stroke(width = w * 0.12f))

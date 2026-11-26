@@ -35,7 +35,7 @@ class OrderDetailRulesTest {
         assertEquals("27번 주문을 픽업해주세요", v.headline)
         assertEquals(27, v.bigPickupNumber)
         assertEquals("13:30까지 받아주세요", v.deadlineBox)
-        assertEquals(CancelButton.HIDDEN, v.cancel)
+        assertEquals(CancelButton.DISABLED, v.cancel) // 픽업해주세요: 주문 취소 버튼 (누를 수 없음)
     }
 
     @Test fun `받을 기한은 서버 값 우선 그다음 매장 설정 분`() {
@@ -54,7 +54,7 @@ class OrderDetailRulesTest {
         assertEquals("매장에서 주문을 받지 못했어요", v.headline)
         assertEquals("재료가 소진됐어요", v.reasonBox)
         assertEquals("결제한 금액은 결제수단으로 환불해 드려요. 카드사에 따라 3~5일 걸려요", v.infoBox)
-        assertEquals(listOf(OrderAction.PICK_OTHER_MENU), v.actions)
+        assertEquals(listOf(OrderAction.REORDER, OrderAction.VIEW_RECEIPT), v.actions)
         // Figma 4.3.3: 첫 칸만 빨강(멈춤)
         assertEquals(listOf(StepState.STOPPED, StepState.PENDING, StepState.PENDING, StepState.PENDING), v.steps!!.map { it.state })
     }
@@ -73,7 +73,7 @@ class OrderDetailRulesTest {
         val store = view(order(OrderStatus.CANCELED, canceledBy = CancelActor.STORE, reason = "곧 영업이 끝나요"))
         assertEquals("매장 사정으로 주문이 취소됐어요", store.headline)
         assertEquals("곧 영업이 끝나요", store.reasonBox)
-        assertEquals(listOf(OrderAction.PICK_OTHER_MENU), store.actions)
+        assertEquals(listOf(OrderAction.REORDER, OrderAction.VIEW_RECEIPT), store.actions)
         assertEquals(StepState.STOPPED, store.steps!!.first().state)
 
         val mine = view(order(OrderStatus.CANCELED, canceledBy = CancelActor.CUSTOMER))
@@ -81,7 +81,7 @@ class OrderDetailRulesTest {
         assertNull(mine.reasonBox)
         assertNull(mine.steps) // 단계 바 숨김
         assertEquals(OrderDetailRules.CANCELED_NOTICE, mine.infoBox)
-        assertEquals(listOf(OrderAction.VIEW_RECEIPT), mine.actions)
+        assertEquals(listOf(OrderAction.REORDER, OrderAction.VIEW_RECEIPT), mine.actions)
     }
 
     @Test fun `환불 완료 - 금액과 진행된 곳까지의 단계 바`() {

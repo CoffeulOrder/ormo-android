@@ -49,6 +49,11 @@ import com.ormo.customer.ui.components.OrmoDivider
 import com.ormo.customer.ui.components.OrmoIcons
 import com.ormo.customer.ui.components.OrmoSnackbarHost
 import com.ormo.customer.ui.components.OrmoSnackbarState
+import com.ormo.customer.ui.components.hidingKeyboard
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import com.ormo.customer.ui.components.OrmoThickDivider
+import com.ormo.customer.ui.components.hideKeyboardOnScroll
 import com.ormo.customer.ui.components.SnackbarDurations
 import com.ormo.customer.ui.theme.Ormo
 import com.ormo.customer.ui.theme.OrmoType
@@ -144,28 +149,26 @@ fun MenuSearchScreen(vm: MenuSearchViewModel, availability: () -> OrderAvailabil
         Column(Modifier.fillMaxSize().imePadding()) {
             // 상단: 뒤로가기 + 검색 입력 (Figma 2.1.3). 입력칸은 Fill/Neutral Weak 바탕, 왼쪽 검색 아이콘, 오른쪽 지우기
             Row(
-                Modifier.fillMaxWidth().ormoStatusBarsPadding().height(56.dp).padding(start = Space.s8, end = Space.s20),
+                Modifier.fillMaxWidth().ormoStatusBarsPadding().padding(start = Space.s8, end = Space.s20, top = Space.s8, bottom = Space.s8),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(Modifier.size(48.dp).clickable(role = Role.Button, onClickLabel = "뒤로가기", onClick = onBack), contentAlignment = Alignment.Center) {
                     Icon(OrmoIcons.Back, contentDescription = "뒤로가기", tint = c.iconPrimary, modifier = Modifier.size(Size.iconLg))
                 }
-                SearchInput(query, vm::onQueryChanged, Modifier.weight(1f))
+                SearchInput(query, vm::onQueryChanged, onSearch = vm::remember, modifier = Modifier.weight(1f))
             }
-            Box(Modifier.padding(top = Space.s8))
             val canAdd = availability() is OrderAvailability.Available
             when (val v = view) {
                 is SearchView.Start -> SearchStart(v, vm, canAdd, snackbar, onOption)
-                is SearchView.Results -> LazyColumn(Modifier.weight(1f)) {
+                is SearchView.Results -> LazyColumn(Modifier.weight(1f).hideKeyboardOnScroll()) {
                     item {
-                        Text(v.countLabel, style = OrmoType.bodySmSemibold, color = c.textTertiary, modifier = Modifier.padding(start = Space.pageMargin, end = Space.pageMargin, top = 18.dp, bottom = Space.s8))
+                        Text(v.countLabel, style = OrmoType.bodyMdMedium, color = c.textSecondary, modifier = Modifier.padding(start = Space.pageMargin, end = Space.pageMargin, top = Space.s16, bottom = Space.s4))
                     }
                     itemsIndexed(v.hits, key = { _, h -> h.item.id }) { index, hit ->
                         val rowState = MenuHomeRules.rowState(hit.item, availability())
                         MenuRow(
                             item = hit.item,
                             state = rowState,
-                            quantity = 0,
                             badge = if (!rowState.tappable) BadgeKind.SoldOut else null,
                             highlight = hit.range,
                             compact = true,
@@ -177,10 +180,39 @@ fun MenuSearchScreen(vm: MenuSearchViewModel, availability: () -> OrderAvailabil
                         if (index < v.hits.lastIndex) OrmoDivider()
                     }
                 }
-                is SearchView.NoResult -> Column(Modifier.weight(1f)) {
-                    Text(v.title, style = OrmoType.bodyXlBold, color = c.textPrimary, modifier = Modifier.semantics { heading() }.padding(start = Space.pageMargin, end = Space.pageMargin, top = Space.s24))
-                    Text(v.hint, style = OrmoType.bodyMdRegular, color = c.textSecondary, modifier = Modifier.padding(horizontal = Space.pageMargin).padding(top = Space.s4))
-                    if (v.showsPopular) PopularList(v.popular, vm, canAdd, snackbar, title = "이 매장 인기 메뉴", onOption = onOption)
+                is SearchView.NoResult -> Column(Modifier.weight(1f).fillMaxWidth().hideKeyboardOnScroll().verticalScroll(rememberScrollState())) {
+                    // Figma 2.1.3 결과 없음: 가운데 회색 원 + 돋보기, 제목·안내(가운데), 굵은 구분선 아래 '인기 메뉴' + 메뉴 줄
+                    Column(Modifier.fillMaxWidth().padding(top = 39.dp, bottom = 40.dp, start = 40.dp, end = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(Modifier.size(60.dp).clip(androidx.compose.foundation.shape.CircleShape).background(c.fillNeutralWeak), contentAlignment = Alignment.Center) {
+                            Icon(OrmoIcons.Search, contentDescription = null, tint = c.iconTertiary, modifier = Modifier.size(32.dp))
+                        }
+                        Text(
+                            v.title,
+                            style = OrmoType.bodyLgSemibold,
+                            color = c.textStrong,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            modifier = Modifier.padding(top = 20.dp).semantics { heading() },
+                        )
+                        Text(v.hint, style = OrmoType.bodyMdRegular, color = c.textSecondary, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(top = Space.s4))
+                    }
+                    if (v.showsPopular) {
+                        OrmoThickDivider()
+                        Text("인기 메뉴", style = OrmoType.bodyLgSemibold, color = c.textPrimary, modifier = Modifier.padding(start = Space.pageMargin, end = Space.pageMargin, top = Space.s12))
+                        v.popular.forEachIndexed { index, item ->
+                            val rowState = MenuHomeRules.rowState(item, availability())
+                            MenuRow(
+                                item = item,
+                                state = rowState,
+                                badge = if (!rowState.tappable) BadgeKind.SoldOut else null,
+                                onClick = {
+                                    if (rowState.canAdd && !OptionRules.hasOptions(item)) snackbar.show(vm.onMenuClicked(item, true), SnackbarDurations.ADDED)
+                                    else onOption(item.id)
+                                },
+                            )
+                            if (index < v.popular.lastIndex) OrmoDivider()
+                        }
+                        Box(Modifier.height(Space.s32))
+                    }
                 }
             }
         }
@@ -191,23 +223,23 @@ fun MenuSearchScreen(vm: MenuSearchViewModel, availability: () -> OrderAvailabil
 @Composable
 private fun SearchStart(v: SearchView.Start, vm: MenuSearchViewModel, canAdd: Boolean, snackbar: OrmoSnackbarState, onOption: (String) -> Unit) {
     val c = Ormo.colors
-    LazyColumn(Modifier.fillMaxSize()) {
+    LazyColumn(Modifier.fillMaxSize().hideKeyboardOnScroll()) {
         // 기록이 없는 묶음은 숨긴다
         if (v.showsRecent) {
             item {
-                Row(Modifier.fillMaxWidth().padding(horizontal = Space.pageMargin, vertical = Space.s8), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = Space.pageMargin, vertical = Space.s12), verticalAlignment = Alignment.CenterVertically) {
                     Text("최근 검색", style = OrmoType.bodyLgSemibold, color = c.textPrimary, modifier = Modifier.weight(1f))
                     OrmoButton("전체 삭제", vm::clearRecent, kind = ButtonKind.Ghost, size = ButtonSize.S)
                 }
             }
             items(v.recent, key = { "r-$it" }) { term ->
                 Row(
-                    Modifier.fillMaxWidth().clickable(role = Role.Button) { vm.searchRecent(term) }.padding(start = Space.pageMargin, end = Space.s8),
+                    Modifier.fillMaxWidth().clickable(role = Role.Button) { vm.searchRecent(term) }.padding(start = Space.pageMargin, end = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(term, style = OrmoType.bodyMdRegular, color = c.textPrimary, modifier = Modifier.weight(1f).padding(vertical = Space.s16)) // Figma: 행 높이 56
-                    Box(Modifier.size(48.dp).clickable(role = Role.Button, onClickLabel = "$term 삭제") { vm.removeRecent(term) }, contentAlignment = Alignment.Center) {
-                        Icon(OrmoIcons.Close, contentDescription = null, tint = c.iconSecondary, modifier = Modifier.size(Size.iconMd))
+                    Text(term, style = OrmoType.bodyMdMedium, color = c.textPrimary, modifier = Modifier.weight(1f).padding(vertical = Space.s12)) // Figma: 행 높이 48 · Medium 16
+                    Box(Modifier.size(40.dp).clickable(role = Role.Button, onClickLabel = "$term 삭제") { vm.removeRecent(term) }, contentAlignment = Alignment.Center) {
+                        Icon(OrmoIcons.Close, contentDescription = null, tint = c.iconTertiary, modifier = Modifier.size(Size.iconMd))
                     }
                 }
             }
@@ -245,7 +277,7 @@ private fun PopularList(items: List<MenuItem>, vm: MenuSearchViewModel, canAdd: 
 
 /** 검색 입력칸: 높이 48, 반경 16, Fill/Neutral Weak, 검색 아이콘 + 안내 '메뉴 이름으로 검색해보세요', 입력이 있으면 지우기 */
 @Composable
-private fun SearchInput(value: String, onChange: (String) -> Unit, modifier: Modifier = Modifier) {
+private fun SearchInput(value: String, onChange: (String) -> Unit, onSearch: () -> Unit, modifier: Modifier = Modifier) {
     val c = Ormo.colors
     val requester = remember { androidx.compose.ui.focus.FocusRequester() }
     LaunchedEffect(Unit) { requester.requestFocus() } // 아이콘을 누르면 키보드가 바로 올라온다
@@ -256,17 +288,18 @@ private fun SearchInput(value: String, onChange: (String) -> Unit, modifier: Mod
         textStyle = OrmoType.bodyMdRegular.copy(color = c.textPrimary),
         cursorBrush = androidx.compose.ui.graphics.SolidColor(c.fillBrand),
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-        keyboardActions = KeyboardActions(onSearch = { }),
+        // 검색은 입력할 때마다 이미 걸러져 있다 → 엔터는 키보드만 내린다 (결과가 키보드에 가려지지 않게)
+        keyboardActions = KeyboardActions(onSearch = { onSearch() }).hidingKeyboard(), // 엔터: 최근 검색어에 남기고 키보드를 내린다
         modifier = modifier.fillMaxWidth().focusRequester(requester),
         decorationBox = { inner ->
             Row(
-                Modifier.fillMaxWidth().height(Size.heightLg).clip(Shapes.control56).background(c.fillNeutralWeak).padding(horizontal = Space.s12),
+                Modifier.fillMaxWidth().height(48.dp).clip(Shapes.control48).background(c.fillNeutralWeak).padding(horizontal = Space.s16), // Figma: 48 · 반경 14 · 좌우 16
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Space.s8),
             ) {
                 Icon(OrmoIcons.Search, contentDescription = null, tint = c.iconSecondary, modifier = Modifier.size(Size.iconLg))
                 Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                    if (value.isEmpty()) Text("메뉴 이름으로 검색해보세요", style = OrmoType.bodyMdRegular, color = c.textQuaternary)
+                    if (value.isEmpty()) Text("메뉴 이름으로 검색해보세요", style = OrmoType.bodyMdRegular, color = c.textTertiary)
                     inner()
                 }
                 if (value.isNotEmpty()) {
