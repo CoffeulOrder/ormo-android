@@ -61,6 +61,14 @@ class MenuSchemaTest {
         assertEquals(p, MenuSchema.parsePayload(MenuSchema.encodePayload(p)))
     }
 
+    @Test fun `옵션 선택지 품절은 저장했다가 다시 읽어도 남는다`() {
+        val p = parse(valid.replace(""""id":"ice","name":"ICE",""", """"id":"ice","name":"ICE","soldOut":true,"""))
+        val again = MenuSchema.parsePayload(MenuSchema.encodePayload(p))
+        val choices = again.cafes.single().menus.first().optionGroups.first().choices
+        assertEquals(listOf(false, true), choices.map { it.soldOut })
+        assertEquals(p, again)
+    }
+
     @Test fun `필수 필드가 틀리면 전체 거부`() {
         assertFailsWith<AppError.Schema> { parse("""{"cafes":[]}""") } // version 없음
         assertFailsWith<AppError.Schema> { parse(valid.replace("\"version\":3", "\"version\":3.5")) }

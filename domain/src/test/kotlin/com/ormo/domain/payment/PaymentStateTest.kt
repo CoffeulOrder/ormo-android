@@ -181,6 +181,6 @@ class PaymentStateTest {
 
     @Test fun `실패 문구는 코드 표가 없으면 기본 문구`() {
         assertEquals("결제하지 못했어요", PaymentMessages.failed("ANY").title)
-        assertEquals("카드 상태를 확인하거나 다른 결제수단을 선택해주세요", PaymentMessages.failed(null).body)
+        assertEquals("카드 상태를 확인하거나\n다른 결제수단을 선택해주세요", PaymentMessages.failed(null).body)
     }
 }

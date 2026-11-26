@@ -113,6 +113,32 @@ class PaymentCoordinatorTest {
         assertEquals(PaymentPhase.Succeeded, f.phase)
     }
 
+    @Test fun `결제창이 실패라고 했는데 서버가 계속 대기면 결제 실패`() = blocking {
+        val f = fixture(statuses = listOf(PaymentStatus.Pending), pg = listOf(PgResult.Failed("C004")))
+        f.coordinator.pay(draft, card)
+        assertEquals(PaymentPhase.Failed("C004"), f.phase)
+        assertEquals(3, f.api.statusCalls)
+        assertEquals(1, f.store.value!!.failedCount)
+    }
+
+    @Test fun `결제창이 실패라고 해도 서버가 결제됨이면 성공`() = blocking {
+        val f = fixture(statuses = listOf(PaymentStatus.Pending, PaymentStatus.Paid), pg = listOf(PgResult.Failed("E")))
+        f.coordinator.pay(draft, card)
+        assertEquals(PaymentPhase.Succeeded, f.phase)
+    }
+
+    @Test fun `늦은 확인은 한 번씩 묻고 결론이 없으면 그대로, 결론이 나면 반영`() = blocking {
+        val f = fixture(statuses = listOf(PaymentStatus.Pending, PaymentStatus.Pending, PaymentStatus.Pending, PaymentStatus.Pending, AppError.Network(), PaymentStatus.Paid))
+        f.coordinator.pay(draft, card)
+        repeat(2) {
+            f.coordinator.pollOnce()
+            assertEquals(PaymentPhase.Confirming(checkFailed = true), f.phase)
+        }
+        f.coordinator.pollOnce()
+        assertEquals(PaymentPhase.Succeeded, f.phase)
+        assertNull(f.store.value)
+    }
+
     @Test fun `결제 버튼 연타해도 주문과 결제창은 한 번`() = blocking {
         val f = fixture()
         val gate = CompletableDeferred<Unit>()

@@ -134,13 +134,74 @@ class BackendApisTest {
     @Test fun `메뉴 버전 - 같은 목록이면 같고 품절만 바뀌어도 같다, 가격이 바뀌면 다르다`() = runBlocking {
         routes = ::menuRoutes
         val api = BackendMenuApi(client)
-        val v1 = api.fetchVersion("s")
-        assertEquals(v1, api.fetchMenus("s").version) // 같은 목록 → 같은 버전
+        // 앱을 켠 뒤 첫 확인은 요청 없이 '다름' → 저장해 둔 메뉴가 있어도 전부 새로 받는다
+        assertEquals(-2L, api.fetchVersion("s"))
+        assertTrue(seen.isEmpty())
+        val v1 = api.fetchMenus("s").version
+        assertEquals(v1, api.fetchVersion("s")) // 같은 목록 → 같은 버전
         val base = ::menuRoutes
         routes = { r -> if (path(r) == "/stores/1/menus") base(r).setBody(base(r).getBody()!!.readUtf8().replace(""""soldOut":true""", """"soldOut":false""")) else base(r) }
         assertEquals(v1, api.fetchVersion("s")) // 품절은 버전에 넣지 않는다
         routes = { r -> if (path(r) == "/stores/1/menus") base(r).setBody(base(r).getBody()!!.readUtf8().replace("3500", "3600")) else base(r) }
         assertTrue(api.fetchVersion("s") != v1)
+    }
+
+    @Test fun `메뉴 - 이름이 빈 카테고리의 메뉴는 기타로 묶는다`() = runBlocking {
+        routes = { r ->
+            if (path(r) == "/stores/1/categories") {
+                ok("""[{"categoryId":10,"name":"커피","sortOrder":1},{"categoryId":11,"name":"","sortOrder":2}]""")
+            } else {
+                menuRoutes(r)
+            }
+        }
+        val cafe = BackendMenuApi(client).fetchMenus("s").cafes.single()
+        assertEquals("커피", cafe.menus.first { it.id == "100" }.category)
+        assertEquals("기타", cafe.menus.first { it.id == "200" }.category)
+        assertTrue(seen.none { path(it) == "/stores/1/menus?categoryId=11" })
+    }
+
+    /** 매장 1 은 정상, 매장 2 는 [store2] 가 정한 응답 */
+    private fun twoStores(store2: (String) -> MockResponse): (RecordedRequest) -> MockResponse = { r ->
+        val p = path(r)
+        when {
+            p == "/stores" -> ok("""[{"storeId":1,"name":"범석관점","status":"OPEN"},{"storeId":2,"name":"깨진 매장","status":"OPEN"}]""")
+            p.startsWith("/stores/2/") -> store2(p)
+            else -> menuRoutes(r)
+        }
+    }
+
+    private val oneMenu = """[{"menuId":900,"name":"라떼","description":"","basePrice":4000,"imageUrl":null,"soldOut":false,"hasOptions":true}]"""
+
+    @Test fun `메뉴 - 한 매장의 데이터가 잘못돼도 다른 매장은 보이고, 다음에 다시 받는다`() = runBlocking {
+        val broken = listOf<(String) -> MockResponse>(
+            // 메뉴 목록 형태 오류
+            { ok("""[{"menuId":900}]""") },
+            // 카테고리 서버 오류
+            { p -> if (p == "/stores/2/menus") ok(oneMenu) else err(500, "C999") },
+            // 옵션 상세 형태 오류 (매장 안의 병렬 요청)
+            { p ->
+                when {
+                    p == "/stores/2/menus" -> ok(oneMenu)
+                    p == "/stores/2/categories" -> ok("[]")
+                    else -> ok("""{"optionGroups":[{"name":"id 없음"}]}""")
+                }
+            },
+        )
+        for (store2 in broken) {
+            routes = twoStores(store2)
+            val api = BackendMenuApi(client)
+            val p = api.fetchMenus("s")
+            assertEquals(listOf("1"), p.cafes.map { it.id })
+            assertEquals(3, p.cafes.single().menus.size)
+            assertTrue(api.fetchVersion("s") != p.version)
+        }
+    }
+
+    @Test fun `메뉴 - 모든 매장이 실패하거나 로그인이 만료되면 전체 실패`() {
+        routes = { r -> if (path(r) == "/stores") menuRoutes(r) else ok("""[{"menuId":1}]""") }
+        assertFailsWith<AppError.Schema> { runBlocking { BackendMenuApi(client).fetchMenus("s") } }
+        routes = twoStores { err(401, "AUTH_003") }
+        assertFailsWith<AppError.Api> { runBlocking { BackendMenuApi(client).fetchMenus("s") } }
     }
 
     @Test fun `품절 목록`() = runBlocking {

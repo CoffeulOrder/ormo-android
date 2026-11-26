@@ -7,6 +7,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import okhttp3.Call
@@ -40,8 +41,15 @@ class ApiClient(
     val sessions: SessionManager,
     private val http: OkHttpClient = defaultHttpClient(),
     private val json: Json = Json { ignoreUnknownKeys = true },
+    /** 요청·응답 한 줄 로그 (개발용). null 이면 남기지 않는다. 비밀번호·토큰·인증코드는 가린다. */
+    private val log: ((String) -> Unit)? = null,
 ) {
     private val base = baseUrl.trimEnd('/')
+
+    /** 요청 로그와 같은 곳에 한 줄 남긴다 (응답을 해석하다 버린 것 등) */
+    fun note(message: String) {
+        log?.invoke(message)
+    }
 
     suspend fun get(path: String, headers: Map<String, String> = emptyMap()): JsonElement? =
         request("GET", path, null, headers)
@@ -105,7 +113,15 @@ class ApiClient(
         }
         builder.method(method, requestBody)
 
-        val (status, text) = http.newCall(builder.build()).await()
+        log?.invoke("-> $method $base$path" + (body?.let { " " + masked(it, REQUEST_SECRETS) } ?: ""))
+        val started = System.nanoTime()
+        val (status, text) = try {
+            http.newCall(builder.build()).await()
+        } catch (e: AppError.Network) {
+            log?.invoke("xx $method $path (${elapsedMs(started)}ms) 연결 실패: ${e.cause}")
+            throw e
+        }
+        log?.invoke("<- $status $method $path (${elapsedMs(started)}ms) ${forLog(text)}")
 
         val parsed: JsonElement? = if (text.isBlank()) {
             null
@@ -128,6 +144,28 @@ class ApiClient(
             throw AppError.Api(status, code, parsed)
         }
         return unwrap(parsed)
+    }
+
+    private fun elapsedMs(startedNanos: Long): Long = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos)
+
+    /** 응답 본문을 로그용 글자로: 비밀 값은 가리고 길면 자른다 */
+    private fun forLog(text: String): String {
+        if (text.isBlank()) return "(본문 없음)"
+        val shown = try {
+            masked(json.parseToJsonElement(text), RESPONSE_SECRETS)
+        } catch (e: SerializationException) {
+            text
+        }
+        return if (shown.length > LOG_BODY_LIMIT) shown.take(LOG_BODY_LIMIT) + "…" else shown
+    }
+
+    private fun masked(el: JsonElement, secrets: Set<String>): String {
+        fun walk(e: JsonElement): JsonElement = when (e) {
+            is JsonObject -> JsonObject(e.mapValues { (k, v) -> if (k in secrets) JsonPrimitive("***") else walk(v) })
+            is JsonArray -> JsonArray(e.map(::walk))
+            else -> e
+        }
+        return json.encodeToString(JsonElement.serializer(), walk(el))
     }
 
     private fun unwrap(el: JsonElement?): JsonElement? {
@@ -166,6 +204,12 @@ class ApiClient(
         private val JSON_TYPE = "application/json; charset=utf-8".toMediaType()
 
         const val TIMEOUT_SECONDS = 10L
+
+        private const val LOG_BODY_LIMIT = 2000
+        private val RESPONSE_SECRETS = setOf("password", "accessToken", "refreshToken", "verificationToken")
+
+        /** 요청의 `code` 는 인증코드, 응답의 `code` 는 오류 코드라 요청에서만 가린다 */
+        private val REQUEST_SECRETS = RESPONSE_SECRETS + setOf("currentPassword", "newPassword", "code")
 
         fun defaultHttpClient(): OkHttpClient = OkHttpClient.Builder()
             .callTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)

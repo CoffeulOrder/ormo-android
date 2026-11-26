@@ -22,7 +22,7 @@ import java.util.UUID
  * - 서버가 최종 결정권자: PG 가 승인/실패를 알려도 항상 [OrderApi.paymentStatus] 로 확정한 뒤 화면을 바꾼다 (3.2.2).
  * - 결제창을 닫고 돌아와 다시 누르면, 새 주문을 만들지 않고 **같은 주문**의 상태를 먼저 확인한다 (그 사이 결제가 승인됐을 수 있음).
  * - 확인이 늦어지면 [maxPolls] 번까지 [pollIntervalMs] 간격으로 묻고, 그래도 결론이 없으면 `Confirming(checkFailed = true)` 로 두어
- *   화면이 [다시 확인] 을 보이게 한다 (앱 복귀 시에도 [recheck]).
+ *   화면이 그대로 둔 채 [pollOnce] 로 계속 묻는다.
  *
  * @param delayFn 테스트에서 시간 건너뛰기용
  */
@@ -77,10 +77,11 @@ class PaymentCoordinator(
             } else {
                 update { it.openPg() }
             }
+            var pgFailure: PgResult.Failed? = null
             if (_state.value.phase == PaymentPhase.AwaitingPg) {
-                openGateway(order, method)
+                pgFailure = openGateway(order, method)
             }
-            if (_state.value.phase is PaymentPhase.Confirming) confirmLoop(order)
+            if (_state.value.phase is PaymentPhase.Confirming) confirmLoop(order, pgFailure)
         } catch (e: CancellationException) {
             // 화면이 사라져도 상태가 멈춘 채 남지 않게 한다. 주문은 유지해 다음 결제에서 서버 확인부터 한다.
             update { s ->
@@ -145,22 +146,28 @@ class PaymentCoordinator(
         }
     }
 
-    private suspend fun openGateway(order: PlacedOrder, method: PaymentMethod) {
+    /** 결제창을 연다. 결제창이 **실패라고 알려 온** 경우에만 그 실패를 돌려준다 (예외로 결과를 모르는 경우는 null) */
+    private suspend fun openGateway(order: PlacedOrder, method: PaymentMethod): PgResult.Failed? {
         val result = try {
             gateway.pay(PgRequest(order.orderId, order.amount, method))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            PgResult.Failed(code = null, message = e.message) // 결과를 모르니 서버에 확인
+            update { it.pgReturned() } // 결과를 모르니 서버에 확인
+            return null
         }
         when (result) {
             PgResult.Canceled -> update { it.pgCanceled() }
             is PgResult.Approved, is PgResult.Failed -> update { it.pgReturned() }
         }
+        return result as? PgResult.Failed
     }
 
-    /** 서버가 확정할 때까지 묻는다. */
-    private suspend fun confirmLoop(order: PlacedOrder) {
+    /**
+     * 서버가 확정할 때까지 묻는다.
+     * 결제창이 실패라고 했고([pgFailure]) 끝까지 물어도 서버가 '대기'면 실패로 본다 (3.3.1) — 서버가 결제됨·만료라고 하면 서버가 이긴다.
+     */
+    private suspend fun confirmLoop(order: PlacedOrder, pgFailure: PgResult.Failed? = null) {
         for (i in 0 until maxPolls) {
             val status = try {
                 orders.paymentStatus(order.orderId)
@@ -172,16 +179,47 @@ class PaymentCoordinator(
             }
             when (status) {
                 PaymentStatus.Paid -> { update { it.paid() }; finish(); return }
-                is PaymentStatus.Failed -> {
-                    val s = update { it.failed(status.code) }
-                    if (s.phase is PaymentPhase.Exhausted) finish() else persist(s)
-                    return
-                }
+                is PaymentStatus.Failed -> { fail(status.code); return }
                 PaymentStatus.Expired -> { update { it.expired() }; finish(); return }
-                PaymentStatus.Pending -> if (i < maxPolls - 1) delayFn(pollIntervalMs)
+                PaymentStatus.Pending -> {
+                    // 실패라고 들었으면 오래 기다리지 않는다
+                    if (pgFailure != null && i >= minOf(PG_FAILURE_POLLS, maxPolls) - 1) { fail(pgFailure.code); return }
+                    if (i < maxPolls - 1) delayFn(pollIntervalMs)
+                }
             }
         }
         update { it.confirmUnresolved() }
+    }
+
+    private suspend fun fail(code: String?) {
+        val s = update { it.failed(code) }
+        if (s.phase is PaymentPhase.Exhausted) finish() else persist(s)
+    }
+
+    /**
+     * 확인이 늦을 때(`checkFailed`) 화면이 주기적으로 부른다: 한 번만 묻고, 결론이 없거나 못 물어봤으면 상태를 그대로 둔다
+     * (확인 중 화면이 깜빡이지 않고, 뒤로가기로 나갈 수 있는 상태도 유지된다).
+     */
+    suspend fun pollOnce() {
+        val order = synchronized(lock) {
+            val s = _state.value
+            s.order.takeIf { (s.phase as? PaymentPhase.Confirming)?.checkFailed == true }
+        } ?: return
+        val status = try {
+            orders.paymentStatus(order.orderId)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return
+        }
+        // 묻는 사이에 주문서로 나갔으면 결과를 반영하지 않는다
+        if (_state.value.phase !is PaymentPhase.Confirming) return
+        when (status) {
+            PaymentStatus.Paid -> { update { it.paid() }; finish() }
+            is PaymentStatus.Failed -> fail(status.code)
+            PaymentStatus.Expired -> { update { it.expired() }; finish() }
+            PaymentStatus.Pending -> Unit
+        }
     }
 
     /** "확인 중" 에서 [다시 확인] 을 누르거나 앱이 포그라운드로 돌아왔을 때 */
@@ -245,4 +283,9 @@ class PaymentCoordinator(
     }
 
     private suspend fun finish() { pending.clear() }
+
+    private companion object {
+        /** 결제창이 실패라고 했을 때 서버에 확인해 보는 횟수 (1초 간격 → 약 2초) */
+        const val PG_FAILURE_POLLS = 3
+    }
 }

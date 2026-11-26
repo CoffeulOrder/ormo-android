@@ -125,7 +125,7 @@ class CheckoutViewModel(
         appScope.launch { payments.pay(draft, method) }
     }
 
-    fun recheck() { appScope.launch { payments.recheck() } }
+    fun pollOnce() { appScope.launch { payments.pollOnce() } }
     fun giveUpWaiting() = payments.giveUpWaiting()
     fun dismissBlocked() = payments.dismissBlocked()
     fun clearPrepareError() = payments.clearPrepareError()
