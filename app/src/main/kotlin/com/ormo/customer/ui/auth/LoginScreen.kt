@@ -79,7 +79,7 @@ fun LoginScreen(
     }
     LaunchedEffect(notice) {
         when (notice) {
-            AuthNotice.PASSWORD_CHANGED -> snackbar.show("비밀번호를 변경했어요", SnackbarDurations.PASSWORD_CHANGED)
+            AuthNotice.PASSWORD_CHANGED -> snackbar.show("비밀번호를 변경했어요", SnackbarDurations.PASSWORD_CHANGED, atTop = true) // Figma 0.3.3: 위쪽 성공 토스트 2초
             AuthNotice.WITHDRAWN -> snackbar.show("탈퇴가 완료됐어요. 그동안 ORMO를 이용해 주셔서 감사해요", 3_000)
             else -> Unit
         }
@@ -110,9 +110,10 @@ fun LoginScreen(
             )
             // 하단 보조 행동 (Ghost 텍스트): '비밀번호 찾기 | 회원가입'. 잠겼으면 [비밀번호 재설정하기] (0.1.2)
             // Figma: 글자 사이 간격이 좁은 한 줄 (버튼 여백 없이), 눌리는 영역은 높이 48
-            Row(Modifier.fillMaxWidth().offset(y = (-4).dp), horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
+            // Figma 는 글자 하나('비밀번호 찾기 | 회원가입', 폭 156) — 두 링크로 나누더라도 가운데 ' | ' 를 글자 그대로 둬서 같은 폭·시작 위치가 되게 한다
+            Row(Modifier.fillMaxWidth().offset(y = (-4).dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                 LinkText(if (lockLabel != null) "비밀번호 재설정하기" else "비밀번호 찾기", onForgotPassword)
-                Text("|", style = OrmoType.bodyMdMedium, color = Ormo.colors.textTertiary)
+                Text(" | ", style = OrmoType.bodyMdMedium, color = Ormo.colors.textTertiary)
                 LinkText("회원가입", onSignup)
             }
         },
@@ -129,7 +130,7 @@ fun LoginScreen(
                 label = "이메일",
                 suffix = form.domain?.let { "@$it" },
                 trailing = if (domains?.showsPicker == true) {
-                    { Icon(OrmoIcons.ChevronDown, contentDescription = "학교 메일 선택", tint = Ormo.colors.iconSecondary, modifier = Modifier.size(Size.iconLg)) }
+                    { Icon(OrmoIcons.ChevronDown, contentDescription = "학교 메일 선택", tint = Ormo.colors.iconPrimary, modifier = Modifier.size(Size.iconLg)) }
                 } else {
                     null
                 },
@@ -155,7 +156,7 @@ fun LoginScreen(
             title = "학교 메일 주소를 선택해주세요",
             titleBottomPadding = 0.dp,
         ) {
-            Text("학교에서 발급한 메일 주소만 사용할 수 있어요", style = OrmoType.bodyMdRegular, color = Ormo.colors.textSecondary)
+            Text("학교에서 발급한 메일 주소만 사용할 수 있어요", style = OrmoType.bodyMdRegular, color = Ormo.colors.textTertiary) // Figma: Text/Tertiary
             Column(Modifier.padding(top = 31.dp, bottom = Space.s16)) { // Figma: 안내 글자 아래 행 시작, 행 높이 48
                 domains.items.forEach { d ->
                     Row(
@@ -193,6 +194,6 @@ fun LoginScreen(
 @Composable
 private fun LinkText(text: String, onClick: () -> Unit) {
     Box(Modifier.heightIn(min = 48.dp).clickable(role = Role.Button, onClick = onClick), contentAlignment = Alignment.Center) {
-        Text(text, style = OrmoType.bodyMdMedium, color = Ormo.colors.textSecondary)
+        Text(text, style = OrmoType.bodyMdMedium, color = Ormo.colors.textTertiary) // Figma: Text/Tertiary (C-06)
     }
 }

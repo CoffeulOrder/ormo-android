@@ -1,8 +1,12 @@
 package com.ormo.customer.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -84,9 +88,12 @@ fun OrmoBottomSheet(
                         .semantics { heading() },
                 )
             }
+            // 본문이 길면(글자를 키웠거나 매장 이름·안내가 길 때) 이 부분만 스크롤하고, 제목과 아래 버튼은 화면 안에 남긴다
             Column(
                 Modifier
+                    .weight(1f, fill = false)
                     .fillMaxWidth()
+                    .verticalScroll(androidx.compose.foundation.rememberScrollState())
                     .padding(horizontal = Space.sheetMargin, vertical = contentVerticalPadding),
                 content = content,
             )
@@ -94,7 +101,8 @@ fun OrmoBottomSheet(
                 Column(
                     Modifier
                         .fillMaxWidth()
-                        .padding(start = Space.s20, end = Space.s20, top = footerTopPadding, bottom = footerBottomPadding),
+                        // 3버튼 내비게이션(≈48) 위에서는 버튼이 시스템 바에 가려지므로 바 높이 + 12 로 올린다. 제스처 바(≈24 이하)는 Figma 처럼 버튼 아래 여백만
+                        .padding(start = Space.s20, end = Space.s20, top = footerTopPadding, bottom = sheetFooterBottom(footerBottomPadding)),
                     verticalArrangement = Arrangement.spacedBy(Space.s8),
                     content = footer,
                 )
@@ -111,7 +119,7 @@ private fun SheetHandle() {
             .width(Size.handleW)
             .height(Size.handleH)
             .clip(Shapes.chip)
-            .background(Base.Grey300),
+            .background(Ormo.colors.handle),
     )
 }
 
@@ -119,4 +127,13 @@ private fun SheetHandle() {
 @Composable
 fun SheetSlot(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Box(modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(Radius.md)).background(Ormo.colors.bgLower)) { content() }
+}
+
+/** 시트 버튼 아래 여백: Figma 값. 단 3버튼 내비게이션(높이 40 이상)이면 바 높이 + 12 (버튼이 바에 가려지지 않게). 키보드가 올라와 있으면 Figma 값 */
+@Composable
+private fun sheetFooterBottom(figma: androidx.compose.ui.unit.Dp): androidx.compose.ui.unit.Dp {
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    if (WindowInsets.ime.getBottom(density) > 0) return figma
+    val nav = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    return if (nav >= 40.dp) maxOf(figma, nav + 12.dp) else figma
 }

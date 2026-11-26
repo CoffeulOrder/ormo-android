@@ -75,17 +75,22 @@ object NameRules {
     fun normalize(raw: String): String = raw.trim()
 
     /**
-     * 1~20자, 공백만은 불가, 이모지·기호는 불가.
-     * TODO(spec 0.2.3): "허용 글자와 문구는 개발과 확정 필요" — 지금은 글자(한글·영문 등)·숫자·띄어쓰기만 허용.
+     * 1~20자, 공백만은 불가. **한글·영문·띄어쓰기만** 허용 — 숫자·기호·이모지는 불가 (Figma 0.2.3 '이름은 한글과 영문만 입력할 수 있어요').
      * 한글 조합 중에는 호출하지 말 것 (UI 가 조합 완료 후에만 검사).
      */
     fun validate(raw: String): Error? {
         val name = normalize(raw)
         if (name.isEmpty()) return Error.EMPTY
         if (name.codePointCount(0, name.length) > MAX_LENGTH) return Error.TOO_LONG
-        val ok = name.codePoints().allMatch { cp -> cp == ' '.code || Character.isLetterOrDigit(cp) }
+        val ok = name.codePoints().allMatch { cp -> cp == ' '.code || isHangul(cp) || isLatinLetter(cp) }
         return if (ok) null else Error.INVALID_CHARS
     }
+
+    /** 한글 음절·자모 (조합 중인 자모 포함) */
+    private fun isHangul(cp: Int): Boolean =
+        cp in 0xAC00..0xD7A3 || cp in 0x1100..0x11FF || cp in 0x3130..0x318F || cp in 0xA960..0xA97F || cp in 0xD7B0..0xD7FF
+
+    private fun isLatinLetter(cp: Int): Boolean = cp in 'A'.code..'Z'.code || cp in 'a'.code..'z'.code
 }
 
 /** 회원가입 추천인 코드 (FeatureFlags.referral 이 켜졌을 때만 입력칸을 보인다). 영문/숫자 4~12자, 비워 두면 보내지 않는다. */

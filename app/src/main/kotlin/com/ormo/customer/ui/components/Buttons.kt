@@ -5,7 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,12 +28,14 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.ormo.customer.ui.theme.Ormo
 import com.ormo.customer.ui.theme.OrmoType
 import com.ormo.customer.ui.theme.Shapes
@@ -45,6 +46,9 @@ import com.ormo.customer.ui.theme.Space
 enum class ButtonSize(val height: Dp, val shape: RoundedCornerShape, val horizontalPadding: Dp) {
     /** TODO(spec 4.1): S 의 반경·글자 크기는 명세에 없어 38→10 을 따라 가정 */
     S(32.dp, Shapes.control38, 12.dp),
+
+    /** Figma Result(오류·빈 상태 안내)의 [다시 시도] 등: 높이 38 · 반경 10 · 좌우 16 */
+    Result(38.dp, Shapes.control38, 16.dp),
     M(40.dp, Shapes.control40, 16.dp),
     L(48.dp, Shapes.control48, 16.dp),
     XL(56.dp, Shapes.control56, 24.dp),
@@ -53,7 +57,7 @@ enum class ButtonSize(val height: Dp, val shape: RoundedCornerShape, val horizon
 /**
  * 버튼 종류. **한 화면 묶음에 Solid 는 1개만** (주요 행동).
  * - Solid: 주요 행동 (Fill/Brand + On Fill). [Critical] 은 되돌릴 수 없는 행동 (Fill/Danger).
- * - Weak: Fill/Brand Weak 또는 Neutral Weak 배경 + Text/Primary. WeakCritical: 연한 빨강 배경 + 빨간 글자 (주문 취소하기, Figma 4.3.1)
+ * - Weak: Fill/Brand Weak 배경 + Text/Brand (WeakBrand) 또는 Neutral Weak 배경 + Text/Primary (WeakNeutral). WeakCritical: 연한 빨강 배경 + 빨간 글자 (주문 취소하기, Figma 4.3.1)
  * - Outline: 테두리만
  * - Ghost: 텍스트 버튼 (높이 40, 반경 12, 좌우 16, body-md Medium, Text/Tertiary)
  */
@@ -90,7 +94,6 @@ fun OrmoButton(
 ) {
     val c = Ormo.colors
     val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
     val guarded = rememberGuardedClick(onClick)
 
     val ghost = kind == ButtonKind.Ghost
@@ -104,7 +107,7 @@ fun OrmoButton(
         kind == ButtonKind.Solid -> c.fillBrand to c.textOnFill
         kind == ButtonKind.Critical -> c.fillDanger to c.textOnFill
         kind == ButtonKind.WeakCritical -> c.fillDangerWeak to c.textDanger
-        kind == ButtonKind.WeakBrand -> c.fillBrandWeak to c.textPrimary
+        kind == ButtonKind.WeakBrand -> c.fillBrandWeak to c.textBrand // Figma: 연한 파랑 바탕 + 파란(Text/Brand) 글자
         kind == ButtonKind.WeakNeutral -> c.fillNeutralWeak to c.textPrimary
         kind == ButtonKind.Outline -> Color.Transparent to c.textPrimary
         else -> Color.Transparent to c.textTertiary
@@ -129,14 +132,27 @@ fun OrmoButton(
                 role = Role.Button,
                 onClick = guarded,
             )
-            .then(if (pressed && enabled && !loading) Modifier.background(c.fillPressed) else Modifier)
             .padding(horizontal = hPad)
             .semantics { if (loading) stateDescription = "처리 중" },
         contentAlignment = Alignment.Center,
     ) {
         // 로딩 중에도 라벨을 그려 폭을 유지하고 투명하게 둔다
-        // 글자 크기를 키운 설정에서는 잘리지 않고 두 줄로 나뉜다
-        Text(text, style = textStyle, color = fg, modifier = Modifier.alpha(if (loading) 0f else 1f), maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        // 버튼 글자는 항상 한 줄: 폭이 좁은 폰(360dp 이하)이나 글자를 키운 설정에서는 줄바꿈 대신 글자를 25%까지 줄여 맞춘다. 그래도 안 들어가면 말줄임.
+        val maxSp = textStyle.fontSize
+        Text(
+            text,
+            style = textStyle,
+            color = fg,
+            modifier = Modifier.alpha(if (loading) 0f else 1f),
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(
+                minFontSize = (maxSp.value * 0.75f).sp,
+                maxFontSize = maxSp,
+                stepSize = 0.5.sp,
+            ),
+        )
         if (loading) {
             CircularProgressIndicator(color = fg, strokeWidth = 2.dp, modifier = Modifier.size(Size.iconMd))
         }
@@ -155,9 +171,25 @@ fun PrimaryButtonXl(text: String, enabled: Boolean, loading: Boolean = false, on
  * 버튼 배치: 1개 / 2개 가로 / 2개 세로(문구가 길 때). 보조 액션(Ghost)은 아래에 위 여백 8.
  */
 @Composable
-fun BottomCta(modifier: Modifier = Modifier, bottomPadding: androidx.compose.ui.unit.Dp = Space.s32, content: @Composable ColumnScope.() -> Unit) {
+fun BottomCta(
+    modifier: Modifier = Modifier,
+    bottomPadding: androidx.compose.ui.unit.Dp = Space.s32,
+    /**
+     * 위쪽 흐림까지 합친 **전체 높이**를 알려 준다. 하단 CTA 는 화면 위에 **떠 있다**(Figma 는 화면 맨 아래에 absolute) —
+     * 스크롤 내용은 CTA 자리를 따로 잡지 않고 화면 끝까지 이어지며, 끝에 이 높이만큼 빈 칸을 둬서 마지막 줄이 흐림 아래로 가려지지 않게 한다.
+     */
+    onHeightChange: ((androidx.compose.ui.unit.Dp) -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
     val c = Ormo.colors
-    Column(modifier = modifier.fillMaxWidth()) {
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .then(
+                if (onHeightChange != null) Modifier.onSizeChanged { onHeightChange(with(density) { it.height.toDp() }) } else Modifier,
+            ),
+    ) {
         Box(
             Modifier
                 .fillMaxWidth()
@@ -167,8 +199,9 @@ fun BottomCta(modifier: Modifier = Modifier, bottomPadding: androidx.compose.ui.
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .registerBottomBar() // 하단 토스트가 이 영역 위로 뜨도록 높이를 알린다
                 .background(c.bgDefault)
-                .padding(start = Space.s20, end = Space.s20, bottom = bottomPadding),
+                .padding(start = Space.s20, end = Space.s20, bottom = com.ormo.customer.ui.theme.ctaBottomPadding(bottomPadding)),
             verticalArrangement = Arrangement.spacedBy(Space.s8),
             content = content,
         )

@@ -48,16 +48,24 @@ class VerificationStateTest {
         assertFalse(s.copy(code = "123456").shouldSubmit(300_000))
     }
 
-    @Test fun `틀린 코드 1~4번째는 오류 문구와 함께 칸을 비운다`() {
+    @Test fun `틀린 코드 1~4번째는 오류 문구와 함께 숫자를 칸에 남긴다 (빨간 테두리)`() {
         var s = start
         repeat(4) { i ->
             s = s.onCodeChanged("111111", 0).onSubmitStarted().onFailed(CodeError.MISMATCH, 0)
             assertEquals(i + 1, s.wrongAttempts)
             assertEquals(VerificationPhase.INPUT, s.phase)
             assertEquals(VerificationMessage.MISMATCH, s.message)
-            assertEquals("", s.code)
+            assertEquals("111111", s.code)
             assertTrue(s.inputEnabled(0))
         }
+    }
+
+    @Test fun `틀린 뒤 새 숫자를 치면 처음부터 다시 입력하고 지우면 한 칸씩 지워진다`() {
+        val wrong = start.onCodeChanged("111111", 0).onSubmitStarted().onFailed(CodeError.MISMATCH, 0)
+        val typed = wrong.onCodeChanged("1111112", 0)
+        assertEquals("2", typed.code)
+        assertNull(typed.message)
+        assertEquals("11111", wrong.onCodeChanged("11111", 0).code)
     }
 
     @Test fun `5번째 오류면 사용이 제한되고 입력이 꺼진다`() {

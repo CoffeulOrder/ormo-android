@@ -166,7 +166,7 @@ fun AppNav(container: AppContainer) {
             val vm: SignupViewModel = viewModel(factory = SignupViewModel.factory(container))
             SignupScreen(
                 vm = vm,
-                onClose = { nav.popBackStack() },
+                onClose = { nav.back() },
                 // 가입 후 바로 로그인된 상태 → (매장 선택은 M3) 지금은 홈 자리로. 자동 로그인이 안 됐으면 로그인 화면으로
                 onFinished = { loggedIn ->
                     container.firstEntryAfterSignup = loggedIn // 가입 직후 첫 진입은 매장 선택에서 뒤로가기를 숨긴다 (1.1.1)
@@ -182,7 +182,7 @@ fun AppNav(container: AppContainer) {
             val vm: ResetViewModel = viewModel(factory = ResetViewModel.factory(container))
             ResetScreen(
                 vm = vm,
-                onClose = { nav.popBackStack() },
+                onClose = { nav.back() },
                 onLogin = { email ->
                     container.pendingLoginEmail = email
                     nav.goClearing(Routes.LOGIN, Routes.LOGIN)
@@ -214,8 +214,9 @@ fun AppNav(container: AppContainer) {
             val vm: StoreSelectViewModel = viewModel(factory = StoreSelectViewModel.factory(container))
             StoreSelectScreen(
                 vm = vm,
-                hideBack = hideBack,
-                onBack = { nav.popBackStack() },
+                // 앞 화면이 없는(이 화면이 맨 처음인) 경우에는 '<' 를 숨긴다 — 눌러도 갈 곳이 없어 아무 반응이 없던 문제. 이때 시스템 뒤로가기는 앱 종료
+                hideBack = hideBack || nav.previousBackStackEntry == null,
+                onBack = { nav.back() },
                 onInfo = { id -> nav.navigate(Routes.storeInfo(id)) },
                 onStoreChosen = { id ->
                     // 메뉴 홈은 매장 선택 위에 쌓지 않는다: 이미 메뉴 홈에서 왔으면 그 홈을 새 매장으로 바꾼다
@@ -224,7 +225,7 @@ fun AppNav(container: AppContainer) {
             )
         }
         composable(Routes.STORE_INFO, arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
-            StoreInfoScreen(storeId = entry.arguments?.getString("id").orEmpty(), repo = container.stores, onBack = { nav.popBackStack() })
+            StoreInfoScreen(storeId = entry.arguments?.getString("id").orEmpty(), repo = container.stores, onBack = { nav.back() })
         }
         composable(Routes.MENU, arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
             val id = entry.arguments?.getString("id").orEmpty()
@@ -251,7 +252,7 @@ fun AppNav(container: AppContainer) {
             MenuSearchScreen(
                 vm = vm,
                 availability = { store?.let { StoreRules.availability(it.status, LocalDateTime.now()) } ?: OrderAvailability.Available },
-                onBack = { nav.popBackStack() },
+                onBack = { nav.back() },
                 onOption = { menuId -> nav.navigate(Routes.option(id, menuId)) },
             )
         }
@@ -261,11 +262,11 @@ fun AppNav(container: AppContainer) {
             val vm: OptionViewModel = viewModel(key = "option-$storeId-$menuId", factory = OptionViewModel.factory(container, storeId, menuId))
             OptionScreen(
                 vm = vm,
-                onBack = { nav.popBackStack() },
+                onBack = { nav.back() },
                 onSearch = { nav.navigate(Routes.search(storeId)) },
                 onMyInfo = { nav.navigate(Routes.MYINFO) },
                 onAdded = { goCheckout ->
-                    if (goCheckout) nav.navigate(Routes.CHECKOUT) { popUpTo(Routes.OPTION) { inclusive = true } } else nav.popBackStack()
+                    if (goCheckout) nav.navigate(Routes.CHECKOUT) { popUpTo(Routes.OPTION) { inclusive = true } } else nav.back()
                 },
             )
         }
@@ -273,7 +274,7 @@ fun AppNav(container: AppContainer) {
             val vm: CheckoutViewModel = viewModel(factory = CheckoutViewModel.factory(container))
             CheckoutScreen(
                 vm = vm,
-                onBack = { nav.popBackStack() },
+                onBack = { nav.back() },
                 onViewMenu = {
                     // 메뉴 홈으로: 이미 스택에 있으면 거기로, 없으면(앱을 다시 켠 뒤 등) 마지막 매장 메뉴를 새로 연다
                     if (!nav.popBackStack(Routes.MENU, inclusive = false)) nav.navigate(Routes.stores(false)) { popUpTo(Routes.CHECKOUT) { inclusive = true } }
@@ -296,20 +297,20 @@ fun AppNav(container: AppContainer) {
             val vm: com.ormo.customer.ui.order.OrderDetailViewModel = viewModel(key = "order-$orderId", factory = com.ormo.customer.ui.order.OrderDetailViewModel.factory(container, orderId))
             com.ormo.customer.ui.order.OrderDetailScreen(
                 vm = vm,
-                onBack = { nav.popBackStack() },
+                onBack = { nav.back() },
                 onReceipt = { id -> nav.navigate(Routes.receipt(id)) },
                 onBrowseMenu = { storeId -> if (!nav.popBackStack(Routes.MENU, inclusive = false)) nav.navigate(Routes.menu(storeId)) },
                 onGoCheckout = { nav.navigate(Routes.CHECKOUT) },
             )
         }
         composable(Routes.RECEIPT, arguments = listOf(navArgument("orderId") { type = NavType.StringType })) { entry ->
-            com.ormo.customer.ui.order.ReceiptScreen(container, entry.arguments?.getString("orderId").orEmpty(), onClose = { nav.popBackStack() })
+            com.ormo.customer.ui.order.ReceiptScreen(container, entry.arguments?.getString("orderId").orEmpty(), onClose = { nav.back() })
         }
         composable(Routes.HISTORY) {
             val vm: com.ormo.customer.ui.order.OrderHistoryViewModel = viewModel(factory = com.ormo.customer.ui.order.OrderHistoryViewModel.factory(container))
             com.ormo.customer.ui.order.OrderHistoryScreen(
                 vm = vm,
-                onBack = { nav.popBackStack() },
+                onBack = { nav.back() },
                 onOrder = { id -> nav.navigate(Routes.order(id)) },
                 onBrowseMenu = { if (!nav.popBackStack(Routes.MENU, inclusive = false)) nav.navigate(Routes.stores(false)) },
                 onGoCheckout = { nav.navigate(Routes.CHECKOUT) },
@@ -319,7 +320,7 @@ fun AppNav(container: AppContainer) {
             val vm: com.ormo.customer.ui.myinfo.MyInfoViewModel = viewModel(factory = com.ormo.customer.ui.myinfo.MyInfoViewModel.factory(container))
             com.ormo.customer.ui.myinfo.MyInfoScreen(
                 vm = vm,
-                onBack = { nav.popBackStack() },
+                onBack = { nav.back() },
                 onOrders = { nav.navigate(Routes.HISTORY) },
                 onPassword = { nav.navigate(Routes.PASSWORD) },
                 onNotifications = { nav.navigate(Routes.NOTIF) },
@@ -328,21 +329,33 @@ fun AppNav(container: AppContainer) {
                 onCatalog = if (BuildConfig.DEBUG) ({ nav.navigate(Routes.CATALOG) }) else null,
             )
         }
-        composable(Routes.LEGAL) { com.ormo.customer.ui.myinfo.LegalListScreen(onBack = { nav.popBackStack() }) }
+        composable(Routes.LEGAL) { com.ormo.customer.ui.myinfo.LegalListScreen(onBack = { nav.back() }) }
         composable(Routes.PASSWORD) {
             val vm: com.ormo.customer.ui.myinfo.ChangePasswordViewModel = viewModel(factory = com.ormo.customer.ui.myinfo.ChangePasswordViewModel.factory(container))
-            com.ormo.customer.ui.myinfo.ChangePasswordScreen(vm, onBack = { nav.popBackStack() })
+            com.ormo.customer.ui.myinfo.ChangePasswordScreen(vm, onBack = { nav.back() })
         }
         composable(Routes.WITHDRAW) {
             val vm: com.ormo.customer.ui.myinfo.WithdrawViewModel = viewModel(factory = com.ormo.customer.ui.myinfo.WithdrawViewModel.factory(container))
-            com.ormo.customer.ui.myinfo.WithdrawScreen(vm, onBack = { nav.popBackStack() }, onOrders = { nav.navigate(Routes.HISTORY) })
+            com.ormo.customer.ui.myinfo.WithdrawScreen(vm, onBack = { nav.back() }, onOrders = { nav.navigate(Routes.HISTORY) })
         }
         composable(Routes.NOTIF) {
             val vm: com.ormo.customer.ui.myinfo.NotificationSettingsViewModel = viewModel(factory = com.ormo.customer.ui.myinfo.NotificationSettingsViewModel.factory(container))
-            com.ormo.customer.ui.myinfo.NotificationSettingsScreen(vm, onBack = { nav.popBackStack() })
+            com.ormo.customer.ui.myinfo.NotificationSettingsScreen(vm, onBack = { nav.back() })
         }
         composable(Routes.CATALOG) { ComponentCatalog() }
     }
+}
+
+/**
+ * 화면 안의 '<' 와 닫기(X) 가 쓰는 뒤로 가기.
+ * - 화면이 오가는 중(RESUMED 가 아님)에 한 번 더 눌려도 무시한다: `popBackStack()` 이 두 번 실행되면 홈까지 지워져 빈 화면이 되거나 앱이 꺼진다.
+ * - 앞 화면이 없으면 아무것도 하지 않는다 (맨 처음 화면을 지워 빈 화면을 만들지 않음).
+ */
+private fun NavHostController.back() {
+    val current = currentBackStackEntry ?: return
+    if (current.lifecycle.currentState != androidx.lifecycle.Lifecycle.State.RESUMED) return
+    if (previousBackStackEntry == null) return
+    popBackStack()
 }
 
 private fun NavHostController.goClearing(route: String, clear: String) {

@@ -69,24 +69,30 @@ fun OrmoCheckbox(
     }
 }
 
+/**
+ * 체크 원. [size] 는 자리(박스) 크기, [circle] 은 그 안에 그려지는 원의 지름 (기본: 같음).
+ * Figma 약관 행(C-11)은 24 박스 안에 지름 20 원이다.
+ */
 @Composable
-fun OrmoCheckCircle(checked: Boolean, size: androidx.compose.ui.unit.Dp = 20.dp) {
+fun OrmoCheckCircle(checked: Boolean, size: androidx.compose.ui.unit.Dp = 20.dp, circle: androidx.compose.ui.unit.Dp = size) {
     val c = Ormo.colors
     val bg by animateColorAsState(if (checked) c.fillBrand else Color.Transparent, tween(120), label = "check-bg")
-    Box(
-        Modifier
-            .size(size)
-            .clip(CircleShape)
-            .background(bg)
-            .border(Size.borderThick, if (checked) c.fillBrand else Base.GreyOpacity300, CircleShape),
-        contentAlignment = Alignment.Center,
-    ) {
-        val markSize = if (size >= 24.dp) Size.iconMd else Size.iconSm
-        if (checked) {
-            Icon(OrmoIcons.Check, contentDescription = null, tint = c.textOnFill, modifier = Modifier.size(markSize))
-        } else {
-            // Figma 옵션 목록·약관 시트: 꺼진 원 안에도 옅은 체크 표시가 보인다
-            Icon(OrmoIcons.Check, contentDescription = null, tint = Base.GreyOpacity300, modifier = Modifier.size(markSize))
+    Box(Modifier.size(size), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier
+                .size(circle)
+                .clip(CircleShape)
+                .background(bg)
+                .border(Size.borderThick, if (checked) c.fillBrand else c.borderStrong, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            val markSize = if (circle >= 24.dp) Size.iconMd else Size.iconSm
+            if (checked) {
+                Icon(OrmoIcons.Check, contentDescription = null, tint = c.textOnFill, modifier = Modifier.size(markSize))
+            } else {
+                // Figma 옵션 목록·약관 시트: 꺼진 원 안에도 옅은 체크 표시가 보인다
+                Icon(OrmoIcons.Check, contentDescription = null, tint = c.borderStrong, modifier = Modifier.size(markSize))
+            }
         }
     }
 }
@@ -116,9 +122,9 @@ fun TermsRow(
                 .weight(1f)
                 .toggleable(value = checked, role = Role.Checkbox, onValueChange = onCheckedChange),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Space.s12),
+            horizontalArrangement = Arrangement.spacedBy(4.7.dp), // Figma: 라벨 시작 = 행 시작 + 28.7 (C-11)
         ) {
-            OrmoCheckCircle(checked, size = 24.dp)
+            OrmoCheckCircle(checked, size = 24.dp, circle = 20.dp)
             Text(
                 label,
                 style = OrmoType.bodyMdRegular,
@@ -132,7 +138,7 @@ fun TermsRow(
                     .clickable(role = Role.Button, onClickLabel = "$label 보기", onClick = onOpen),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(OrmoIcons.ChevronRight, contentDescription = null, tint = c.iconSecondary, modifier = Modifier.size(Size.iconLg))
+                Icon(OrmoIcons.ChevronRight, contentDescription = null, tint = c.iconTertiary, modifier = Modifier.size(Size.iconLg)) // Figma: Icon/Tertiary (C-12)
             }
         }
     }
@@ -153,7 +159,7 @@ fun OrmoSwitch(
         when {
             checked && enabled -> c.fillBrand
             checked -> c.fillBrandWeak
-            else -> Base.Grey300
+            else -> c.handle
         },
         tween(150), label = "switch-track",
     )
@@ -263,7 +269,47 @@ fun OrmoTopNav(
     actions: @Composable () -> Unit = {},
 ) {
     val c = Ormo.colors
-    val iconColor = if (transparent) Color.White else c.iconPrimary
+    val iconColor = if (transparent) Color.White else c.textStrong // Figma: Base/Grey/Grey 900 #191F28 (C-04)
+    if (layout == NavLayout.Center) {
+        // 제목은 **화면 전체의 가운데**에 둔다 (뒤로가기 아이콘 너비를 빼고 남은 칸의 가운데가 아니다).
+        // 오른쪽 버튼(actions)이 있으면 왼쪽도 같은 폭만큼 비워 좌우 대칭으로 둔다.
+        val hasActions = actions != EmptyActions
+        Box(
+            modifier = modifier
+                .fillMaxWidth()
+                .then(if (transparent) Modifier else Modifier.background(c.bgDefault))
+                .then(if (applyStatusBarInset) Modifier.ormoStatusBarsPadding() else Modifier)
+                .heightIn(min = 56.dp)
+                .padding(horizontal = 4.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                title.orEmpty(),
+                style = OrmoType.bodyLgSemibold,
+                color = if (transparent) Color.White else c.textStrong,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = if (hasActions) 100.dp else 48.dp)
+                    .semantics { heading() },
+            )
+            if (onBack != null) {
+                Box(
+                    Modifier
+                        .align(Alignment.CenterStart)
+                        .size(48.dp)
+                        .clickable(role = Role.Button, onClickLabel = "뒤로가기", onClick = onBack),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(OrmoIcons.Back, contentDescription = "뒤로가기", tint = iconColor, modifier = Modifier.size(Size.iconLg))
+                }
+            }
+            if (hasActions) Row(Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) { actions() }
+        }
+        return
+    }
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -383,11 +429,16 @@ fun OrmoStepper(
             Icon(
                 if (minusIsDelete) OrmoIcons.Trash else OrmoIcons.Minus,
                 contentDescription = null,
-                tint = if (minusEnabled) c.iconPrimary else c.iconQuaternary,
+                // Figma: 휴지통은 − 보다 한 단계 옅은 회색(Icon/Secondary), 꺼지면 Quaternary
+                tint = when {
+                    !minusEnabled -> c.iconQuaternary
+                    minusIsDelete -> c.iconSecondary
+                    else -> c.iconPrimary
+                },
                 modifier = Modifier.size(Size.quantityIcon),
             )
         }
-        Box(Modifier.width(1.dp).height(16.dp).background(Base.GreyOpacity100))
+        Box(Modifier.width(1.dp).height(16.dp).background(Ormo.colors.hairline))
         Text(
             quantity.toString(),
             style = OrmoType.bodyMdMedium,
@@ -395,7 +446,7 @@ fun OrmoStepper(
             textAlign = TextAlign.Center,
             modifier = Modifier.widthIn(min = 36.dp).padding(horizontal = Space.s8).semantics { contentDescription = "수량 ${quantity}개" },
         )
-        Box(Modifier.width(1.dp).height(16.dp).background(Base.GreyOpacity100))
+        Box(Modifier.width(1.dp).height(16.dp).background(Ormo.colors.hairline))
         Box(
             Modifier
                 .size(button)
@@ -416,7 +467,7 @@ fun OrmoRadio(selected: Boolean, modifier: Modifier = Modifier, size: androidx.c
             .size(size)
             .clip(CircleShape)
             .background(if (selected) c.fillBrand else c.bgDefault)
-            .then(if (selected) Modifier else Modifier.border(Size.borderThick, Base.GreyOpacity300, CircleShape)),
+            .then(if (selected) Modifier else Modifier.border(Size.borderThick, c.borderStrong, CircleShape)),
         contentAlignment = Alignment.Center,
     ) {
         if (selected) Box(Modifier.size(size / 3).clip(CircleShape).background(c.textOnFill))

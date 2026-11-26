@@ -2,6 +2,7 @@ package com.ormo.customer.ui.menu
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.runtime.remember
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -49,7 +50,7 @@ import com.ormo.domain.model.MenuItem
 
 /**
  * 메뉴 줄 (Figma Menu Card, 사진 없음): 패딩 20 · 간격 12. 뱃지(24) → 이름(18/28 semibold) → 가격(16/24 semibold) → 설명(14/20 regular secondary, 2줄 말줄임).
- * 뱃지가 없으면 그 자리는 없다 (줄 높이는 내용에 따라). 담으면 수량 뱃지가 붙는다.
+ * 뱃지가 없으면 그 자리는 없다 (줄 높이는 내용에 따라). 장바구니에 담긴 수량은 줄에 표시하지 않는다.
  * 품절은 내용 50% 흐리게 + '품절' 뱃지, 눌러지지 않음. 주문 불가여도 줄은 눌린다 (2.2.1 이 열리고 담기만 꺼짐).
  * @param highlight 검색어와 같은 이름 구간(파란색 강조, 2.1.3)
  */
@@ -57,7 +58,6 @@ import com.ormo.domain.model.MenuItem
 fun MenuRow(
     item: MenuItem,
     state: MenuRowState,
-    quantity: Int,
     modifier: Modifier = Modifier,
     badge: BadgeKind? = null,
     highlight: IntRange? = null,
@@ -70,13 +70,12 @@ fun MenuRow(
     Row(
         modifier
             .fillMaxWidth()
-            .then(if (state.tappable) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
+            .then(if (state.tappable) Modifier.clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = com.ormo.customer.ui.theme.pressIndication(), role = Role.Button, onClick = onClick) else Modifier)
             .padding(horizontal = Space.s20, vertical = if (compact) Space.s16 else Space.s20)
             .semantics {
                 contentDescription = buildString {
                     append(item.name).append(", ").append(formatWon(item.price))
                     if (state.dimmed) append(", 품절")
-                    if (quantity > 0) append(", 장바구니에 ${quantity}개")
                 }
             },
         verticalAlignment = Alignment.CenterVertically,
@@ -92,20 +91,6 @@ fun MenuRow(
             }
             if (item.desc.isNotBlank()) {
                 Text(item.desc, style = OrmoType.bodySmRegular, color = c.textSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            }
-        }
-        if (quantity > 0) {
-            // 글자 크기를 키워도 숫자가 잘리지 않게 최소 크기만 정한다. TalkBack 에는 숫자만이 아니라 뜻을 읽어 준다.
-            Box(
-                Modifier
-                    .defaultMinSize(Size.quantityIcon + 6.dp, Size.quantityIcon + 6.dp)
-                    .clip(RoundedCornerShape(percent = 50))
-                    .background(c.fillBrand)
-                    .padding(horizontal = 4.dp)
-                    .semantics { contentDescription = "장바구니에 ${quantity}개" },
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(quantity.coerceAtMost(99).toString(), style = OrmoType.bodyXsBold, color = c.textOnFill)
             }
         }
     }
@@ -170,7 +155,7 @@ fun CategoryTabs(sections: List<HomeSection>, selected: Int, onSelect: (Int) -> 
                         if (on) {
                             Box(
                                 Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(2.dp)
-                                    .clip(CircleShape).background(Base.Grey800),
+                                    .clip(CircleShape).background(Ormo.colors.indicator),
                             )
                         }
                     }

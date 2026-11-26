@@ -31,12 +31,12 @@ class StoreRulesTest {
         assertEquals(StatusLabel("영업 중"), StoreRules.statusLabel(StoreStatus.Open, now))
         assertEquals(StatusLabel("영업 종료"), StoreRules.statusLabel(StoreStatus.Closed(now.plusDays(1)), now))
         assertEquals(
-            StatusLabel("잠시 쉬어요", "14:30에 다시 열어요"),
+            StatusLabel("준비 중", "14:30에 다시 열어요"),
             StoreRules.statusLabel(StoreStatus.Break(now.withHour(14).withMinute(30)), now),
         )
-        assertEquals(StatusLabel("잠시 쉬어요"), StoreRules.statusLabel(StoreStatus.Break(null), now))
+        assertEquals(StatusLabel("준비 중"), StoreRules.statusLabel(StoreStatus.Break(null), now))
         // 이미 지난 재개 시각은 보여주지 않는다 (서버가 아직 상태를 안 바꾼 경우)
-        assertEquals(StatusLabel("잠시 쉬어요"), StoreRules.statusLabel(StoreStatus.Break(now.minusMinutes(5)), now))
+        assertEquals(StatusLabel("준비 중"), StoreRules.statusLabel(StoreStatus.Break(now.minusMinutes(5)), now))
     }
 
     // ---- 주문 가능 여부 (2.1.2) ----

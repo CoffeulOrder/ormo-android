@@ -100,6 +100,12 @@ class InputRulesTest {
         assertEquals(NameRules.Error.TOO_LONG, NameRules.validate("가".repeat(21)))
     }
 
+    @Test fun `숫자는 INVALID_CHARS - 한글과 영문만`() {
+        assertEquals(NameRules.Error.INVALID_CHARS, NameRules.validate("Ormo1"))
+        assertEquals(NameRules.Error.INVALID_CHARS, NameRules.validate("가을2"))
+        assertNull(NameRules.validate("Ormo 가을"))
+    }
+
     @Test fun `이모지와 기호는 INVALID_CHARS`() {
         assertEquals(NameRules.Error.INVALID_CHARS, NameRules.validate("가을😀"))
         assertEquals(NameRules.Error.INVALID_CHARS, NameRules.validate("a!b"))

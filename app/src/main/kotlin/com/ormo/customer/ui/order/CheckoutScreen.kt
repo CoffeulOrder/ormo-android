@@ -14,8 +14,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
@@ -30,7 +32,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import com.ormo.customer.ui.components.Cart
 import com.ormo.customer.ui.auth.MarkBadge
 import com.ormo.customer.ui.auth.OrmoMark
 import androidx.compose.ui.semantics.semantics
@@ -150,6 +151,7 @@ fun CheckoutScreen(
                 body = PaymentMessages.failed(phase.code).body,
                 primary = "다시 결제하기" to vm::pay,
                 secondary = "결제수단 변경하기" to { failureDismissed = true; scrollToPayment++ },
+                bodyMaxWidth = 186.dp,
             )
             phase == PaymentPhase.Exhausted -> ResultScreen(
                 title = PaymentMessages.EXHAUSTED.title,
@@ -177,7 +179,7 @@ fun CheckoutScreen(
                 onPay = vm::pay,
             )
         }
-        OrmoSnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter), bottomOffset = 150.dp)
+        OrmoSnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
 
         // 가짜 PG 창 (시험용): PG 가 확정되면 실제 결제창(Activity)으로 바뀐다
         pgWindow?.let { req ->
@@ -197,7 +199,7 @@ fun CheckoutScreen(
     // 3.1.2 주문 중지: 영업 종료 / 잠시 멈춤 — 결제창 전에 서버가 막았다. 품절은 막지 않고 빼고 결제한다.
     (phase as? PaymentPhase.Blocked)?.let { blocked ->
         val text = PaymentMessages.blocked(blocked.status, LocalDateTime.now())
-        OrmoDialog(title = text.title, body = text.body, confirmLabel = "확인", onConfirm = vm::dismissBlocked, onDismissRequest = null)
+        OrmoDialog(title = text.title, body = text.body, confirmLabel = "확인", onConfirm = vm::dismissBlocked)
     }
 }
 
@@ -217,20 +219,19 @@ private fun CheckoutContent(
     onPay: () -> Unit,
 ) {
     val c = Ormo.colors
+    // 하단 CTA 는 화면 위에 떠 있다 (Figma Bottom CTA 는 화면 맨 아래 absolute + 위쪽 흐림) — 스크롤 내용은 화면 끝까지 이어지고 끝에 CTA 높이만큼만 비운다
+    var ctaHeight by remember { androidx.compose.runtime.mutableStateOf(0.dp) }
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize()) {
         OrmoTopNav(title = "장바구니", onBack = onBack)
         if (checkout.isEmpty) {
-            // 2.3.2 빈 상태 (Figma: 회색 원 60 + 장바구니 아이콘 y=268, 제목 16, 파란 [메뉴 보기] M)
-            Column(
-                Modifier.weight(1f).fillMaxWidth().padding(horizontal = Space.pageMargin).padding(top = 268.dp - 106.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Box(Modifier.size(60.dp).clip(androidx.compose.foundation.shape.CircleShape).background(c.bgLower), contentAlignment = Alignment.Center) {
-                    Icon(OrmoIcons.Cart, null, tint = c.iconTertiary, modifier = Modifier.size(32.dp))
-                }
-                Text("장바구니가 비어 있어요", style = OrmoType.bodyLgSemibold, color = c.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 16.dp).semantics { heading() })
-                OrmoButton("메뉴 보기", onViewMenu, Modifier.padding(top = 20.dp), size = ButtonSize.M)
-            }
+            // 2.3.2 빈 상태: 공통 Result (회색 원 60 + 장바구니 아이콘, 제목, [메뉴 보기])
+            com.ormo.customer.ui.components.OrmoResult(
+                icon = OrmoIcons.Cart,
+                title = "장바구니가 비어 있어요",
+                modifier = Modifier.weight(1f),
+                action = "메뉴 보기" to onViewMenu,
+            )
             return@Column
         }
         val scroll = rememberScrollState()
@@ -274,8 +275,11 @@ private fun CheckoutContent(
                     RadioRow(m.label, checkout.paymentMethod?.id == m.id) { onPaymentMethod(m) }
                 }
             }
+            Spacer(Modifier.height(ctaHeight))
         }
-        BottomCta {
+    }
+    if (!checkout.isEmpty) {
+        BottomCta(Modifier.align(Alignment.BottomCenter), onHeightChange = { ctaHeight = it }) {
             // 결제 전 필수 동의 (청약철회 제한 고지, 법적 필수). 총 결제 금액 줄은 따로 두지 않고 버튼에 금액을 표시한다.
             OrmoCheckbox(
                 checked = checkout.consented,
@@ -285,11 +289,12 @@ private fun CheckoutContent(
                 modifier = Modifier.fillMaxWidth().padding(bottom = Space.s8),
             )
             OrmoButton(checkout.payLabel, onPay, Modifier.fillMaxWidth(), size = ButtonSize.XL, enabled = checkout.canPay(paying) || paying, loading = paying)
-            // 보조 행동: 아래 Ghost 텍스트 버튼 (Text/Tertiary)
+            // 보조 행동: 결제하기 버튼 바로 아래 Ghost 텍스트 버튼 (Text/Tertiary) — 어떤 화면 크기에서도 항상 같은 자리
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 OrmoButton("메뉴 추가하기", onViewMenu, kind = ButtonKind.Ghost)
             }
         }
+    }
     }
 }
 
@@ -355,20 +360,29 @@ private fun StatusScreen(
     body: String,
     mark: @Composable () -> Unit,
     extra: @Composable () -> Unit = {},
+    /** 화면 전체 위에 그리는 모션 (Lottie). 심볼 자리는 [mark] 가 비워 둔다 */
+    overlay: (@Composable (Modifier) -> Unit)? = null,
+    /** 본문 줄바꿈 폭 (Figma 3.3.1 결제 실패: 글자 폭 186 고정 → 두 줄) */
+    bodyMaxWidth: androidx.compose.ui.unit.Dp? = null,
     bottom: (@Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit)? = null,
 ) {
     val c = Ormo.colors
-    Column(Modifier.fillMaxSize().background(c.bgDefault)) {
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().background(c.bgDefault)) {
+    // Figma(812 높이)는 심볼 위가 233. 화면이 낮은 폰에서는 같은 비율(233/812)로 줄여 내용과 하단 버튼이 화면 안에 들어오게 하고, 모션도 같은 만큼 옮긴다
+    val topGap = (maxHeight * (233f / 812f)).coerceIn(72.dp, 233.dp)
+    overlay?.invoke(Modifier.offset(y = topGap - 233.dp))
+    Column(Modifier.fillMaxSize()) {
         Column(
-            Modifier.weight(1f).fillMaxWidth().padding(horizontal = Space.pageMargin).padding(top = 233.dp),
+            Modifier.weight(1f).fillMaxWidth().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(horizontal = Space.pageMargin).padding(top = topGap),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             mark()
             Text(title, style = OrmoType.displayXsSemibold, color = c.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 55.dp).semantics { heading() })
-            Text(body, style = OrmoType.bodyMdMedium, color = c.textSecondary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 12.dp))
+            Text(body, style = OrmoType.bodyMdMedium, color = c.textSecondary, textAlign = TextAlign.Center, modifier = Modifier.then(if (bodyMaxWidth != null) Modifier.widthIn(max = bodyMaxWidth) else Modifier).padding(top = 12.dp))
             extra()
         }
         if (bottom != null) BottomCta(content = bottom)
+    }
     }
 }
 
@@ -405,15 +419,24 @@ private fun ResultScreen(
     primary: Pair<String, () -> Unit>,
     secondary: Pair<String, () -> Unit>? = null,
     expired: Boolean = false,
+    bodyMaxWidth: androidx.compose.ui.unit.Dp? = null,
 ) {
     val c = Ormo.colors
     StatusScreen(
         title = title,
         body = body,
         mark = {
-            if (expired) OrmoMark(cupTint = androidx.compose.ui.graphics.Color(0xFF001936), showSteam = false, badge = MarkBadge.Neutral)
+            // 만료는 Figma 3.3.2 의 Lottie 모션(`ormo_cup_badge`: 컵이 짙은 남색으로, 회색 시계 배지) — 자리는 비워 두고 StatusScreen 위에서 그린다
+            if (expired) Spacer(Modifier.size(100.54.dp, 128.dp))
             else OrmoMark(badge = MarkBadge.Danger)
         },
+        overlay = if (expired) ({ m -> com.ormo.customer.ui.auth.OrmoLottie(
+                    com.ormo.customer.R.raw.ormo_cup_badge,
+                    modifier = m,
+                    // 짙은 남색 컵은 어두운 바탕에서 안 보여 파랑(Blue 600)으로
+                    recolor = if (Ormo.colors.isDark) listOf(com.ormo.customer.ui.auth.LottieRecolor("Cup", androidx.compose.ui.graphics.Color(0xFF1759C4))) else emptyList(),
+                ) }) else null,
+        bodyMaxWidth = bodyMaxWidth,
         bottom = {
             OrmoButton(primary.first, primary.second, Modifier.fillMaxWidth(), size = ButtonSize.XL)
             // Figma: 보조 버튼은 연한 파랑 채움 (결제수단 변경하기)

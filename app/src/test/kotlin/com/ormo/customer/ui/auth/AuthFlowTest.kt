@@ -54,14 +54,14 @@ class AuthFlowTest {
     private fun TestScope.controller(a: AuthRepository, onVerified: (String) -> Unit = {}, now: () -> Long = { testScheduler.currentTime }) =
         VerificationController(backgroundScope, a, VerifyPurpose.SIGNUP, onVerified, clock = now)
 
-    @Test fun `틀린 코드는 일치하지 않음 문구와 함께 칸을 비운다`() = runTest {
+    @Test fun `틀린 코드는 일치하지 않음 문구를 띄우고 입력한 코드는 그대로 둔다`() = runTest {
         val c = controller(auth())
         c.started(SendCodeResult(300, 60))
         c.onCodeChanged("111111", "new@eulji.ac.kr")
         runCurrent()
         val v = assertNotNull(c.state.value)
         assertEquals(VerificationMessage.MISMATCH, v.message)
-        assertEquals("", v.code)
+        assertEquals("111111", v.code)
         assertEquals(1, v.wrongAttempts)
     }
 

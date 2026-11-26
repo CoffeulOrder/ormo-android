@@ -36,13 +36,19 @@ fun StepBar(steps: List<StepView>, modifier: Modifier = Modifier) {
     // Figma 4.3.1: 막대 4개(높이 8, 둥근 알약, 간격 4) → 8 아래 라벨(14 Medium, 현재 단계는 브랜드색) + 시각(12)
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            steps.forEach { s ->
+            steps.forEachIndexed { i, s ->
                 val color = when (s.state) {
                     StepState.DONE, StepState.CURRENT -> c.fillBrand
                     StepState.STOPPED -> c.fillDanger
                     StepState.PENDING, StepState.MISSED -> c.fillBrandWeak
                 }
-                Box(Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(4.dp)).background(color))
+                // Figma 4.3: 맨 왼쪽 칸은 왼쪽 끝만, 맨 오른쪽 칸은 오른쪽 끝만 둥글고(반경 999) 가운데 칸은 모서리 없음
+                val shape = when (i) {
+                    0 -> RoundedCornerShape(topStartPercent = 50, bottomStartPercent = 50)
+                    steps.lastIndex -> RoundedCornerShape(topEndPercent = 50, bottomEndPercent = 50)
+                    else -> RoundedCornerShape(0.dp)
+                }
+                Box(Modifier.weight(1f).height(8.dp).clip(shape).background(color))
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -88,9 +94,10 @@ fun OrderLinesBlock(order: Order, modifier: Modifier = Modifier) {
     Column(modifier.fillMaxWidth().padding(horizontal = Space.pageMargin, vertical = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
         order.lines.forEach { l ->
             Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(Space.s4), verticalAlignment = Alignment.Bottom) {
+                // Figma 4.3.4: 이름(16 Semibold)과 'N개'(14 **Medium**)는 세로 가운데 맞춤, 사이 4
+                Row(horizontalArrangement = Arrangement.spacedBy(Space.s4), verticalAlignment = Alignment.CenterVertically) {
                     Text(l.name, style = OrmoType.bodyMdSemibold, color = c.textPrimary)
-                    Text("${l.qty}개", style = OrmoType.bodySmRegular, color = c.textSecondary)
+                    Text("${l.qty}개", style = OrmoType.bodySmMedium, color = c.textSecondary)
                 }
                 if (l.optionSummary.isNotBlank()) Text(l.optionSummary, style = OrmoType.bodySmRegular, color = c.textSecondary)
             }
@@ -102,7 +109,7 @@ fun OrderLinesBlock(order: Order, modifier: Modifier = Modifier) {
 fun LabelValueRow(label: String, value: String, modifier: Modifier = Modifier) {
     val c = Ormo.colors
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, style = OrmoType.bodyMdRegular, color = c.textSecondary)
+        Text(label, style = OrmoType.bodyMdRegular, color = c.textTertiary) // Figma: 라벨 Text/Tertiary (C-15)
         Text(value, style = OrmoType.bodyMdRegular, color = c.textPrimary, textAlign = TextAlign.End, modifier = Modifier.padding(start = Space.s16))
     }
 }

@@ -140,7 +140,7 @@ private fun ResetEmailStep(ui: ResetUi, snackbar: OrmoSnackbarState, vm: ResetVi
                 error = error,
                 suffix = s.domain?.let { "@$it" },
                 trailing = if (domains?.showsPicker == true) {
-                    { Icon(OrmoIcons.ChevronDown, contentDescription = "학교 메일 선택", tint = Ormo.colors.iconSecondary, modifier = Modifier.size(Size.iconLg)) }
+                    { Icon(OrmoIcons.ChevronDown, contentDescription = "학교 메일 선택", tint = Ormo.colors.iconPrimary, modifier = Modifier.size(Size.iconLg)) }
                 } else {
                     null
                 },

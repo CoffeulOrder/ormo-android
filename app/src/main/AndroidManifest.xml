@@ -3,6 +3,8 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 매장까지 거리·도보 시간 (5.5.1 권한 설정 · 1.1.1 위치 권한 안내). 대략적인 위치만 쓰고 서버로 보내지 않는다 -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <application
         android:name=".OrmoApp"

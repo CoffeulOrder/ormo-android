@@ -3,6 +3,11 @@ package com.ormo.customer.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
@@ -15,6 +20,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import com.ormo.customer.ui.theme.ormoNavigationBarsPadding
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -51,33 +58,48 @@ fun FormScreen(
     LaunchedEffect(scrollToEndKey) {
         if (scrollToEndKey != null) scroll.animateScrollTo(scroll.maxValue)
     }
-    Box(modifier.fillMaxSize().background(c.bgDefault)) {
-        Column(Modifier.fillMaxSize().imePadding()) {
-            OrmoTopNav(onBack = onBack)
-            Column(
-                Modifier
-                    .weight(1f)
-                    .verticalScroll(scroll)
-                    .padding(horizontal = Space.s20),
-                verticalArrangement = Arrangement.Top,
-            ) {
-                if (title != null) {
-                    Text(
-                        title,
-                        style = OrmoType.displayXsSemibold,
-                        color = c.textPrimary,
-                        // Figma: 제목 글자 위 — 첫 화면(로그인·이메일·인증코드) 20, 쌓이는 화면 12
-                        modifier = Modifier.padding(top = if (firstStep) 20.dp else 12.dp).semantics { heading() },
-                    )
-                    Box(Modifier.height(titleGap ?: if (firstStep) 30.dp else 32.dp))
+    // 하단 CTA 는 화면 위에 떠 있다 (Figma 는 화면 맨 아래 absolute + 위쪽 흐림) — 입력 내용은 화면 끝까지 이어지고 끝에 CTA 높이만큼만 비운다
+    var ctaHeight by remember { mutableStateOf(0.dp) }
+    val tailSpace = if (bottom != null) ctaHeight else com.ormo.customer.ui.theme.bottomInset()
+    // 입력 칸 밖의 빈 곳을 누르면 포커스·키보드를 닫는다 (QA F-021). 버튼·칸이 이미 처리한 탭은 건드리지 않는다.
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    Box(
+        modifier
+            .fillMaxSize()
+            .background(c.bgDefault)
+            .pointerInput(Unit) { detectTapGestures { keyboard?.hide(); focusManager.clearFocus() } },
+    ) {
+        Box(Modifier.fillMaxSize().imePadding()) {
+            Column(Modifier.fillMaxSize()) {
+                OrmoTopNav(onBack = onBack)
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .verticalScroll(scroll)
+                        .padding(horizontal = Space.s20),
+                    verticalArrangement = Arrangement.Top,
+                ) {
+                    if (title != null) {
+                        Text(
+                            title,
+                            style = OrmoType.displayXsSemibold,
+                            color = c.textPrimary,
+                            // Figma: 제목 글자 위 — 첫 화면(로그인·이메일·인증코드) 20, 쌓이는 화면 12
+                            modifier = Modifier.padding(top = if (firstStep) 20.dp else 12.dp).semantics { heading() },
+                        )
+                        Box(Modifier.height(titleGap ?: if (firstStep) 30.dp else 32.dp))
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(Space.s24)) { content() }
+                    Spacer(Modifier.height(tailSpace))
                 }
-                Column(verticalArrangement = Arrangement.spacedBy(Space.s24)) { content() }
             }
-            if (bottom != null) BottomCta(bottomPadding = bottomPadding, content = bottom) else Box(Modifier.ormoNavigationBarsPadding())
+            if (bottom != null) BottomCta(Modifier.align(Alignment.BottomCenter), bottomPadding = bottomPadding, onHeightChange = { ctaHeight = it }, content = bottom)
         }
         if (snackbar != null) {
             OrmoTopToastHost(snackbar, Modifier.align(Alignment.TopCenter))
-            OrmoSnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).imePadding().ormoNavigationBarsPadding(), bottomOffset = 140.dp)
+            // 버튼 영역(하단 CTA) 위 12. 키보드가 올라오면 그 위로 (CTA 도 키보드 위에 붙으므로 같이 움직인다)
+            OrmoSnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).imePadding())
         }
     }
 }

@@ -47,9 +47,16 @@ data class VerificationState(
 
     fun inputEnabled(nowMs: Long): Boolean = phase == VerificationPhase.INPUT && !isExpired(nowMs)
 
-    /** 숫자만 6자리까지. 입력이 꺼져 있으면 무시. 입력을 시작하면 이전 오류 문구는 지운다. */
-    fun onCodeChanged(raw: String, nowMs: Long): VerificationState =
-        if (!inputEnabled(nowMs)) this else copy(code = VerificationCodeRules.sanitize(raw), message = null)
+    /**
+     * 숫자만 6자리까지. 입력이 꺼져 있으면 무시. 입력을 시작하면 이전 오류 문구는 지운다.
+     * 틀린 코드는 칸에 남아 있으므로(Figma: 숫자 6개 + 빨간 테두리) 그 위에 **새 숫자를 치면 처음부터 다시** 입력한다.
+     */
+    fun onCodeChanged(raw: String, nowMs: Long): VerificationState {
+        if (!inputEnabled(nowMs)) return this
+        val replacing = message == VerificationMessage.MISMATCH && code.length == VerificationCodeRules.LENGTH && raw.length > code.length
+        val next = if (replacing) raw.takeLast(raw.length - code.length) else raw
+        return copy(code = VerificationCodeRules.sanitize(next), message = null)
+    }
 
     /** 6자리가 모두 차면 확인을 요청한다 */
     fun shouldSubmit(nowMs: Long): Boolean = inputEnabled(nowMs) && VerificationCodeRules.isComplete(code)
@@ -62,15 +69,15 @@ data class VerificationState(
         CodeError.MISMATCH -> {
             val wrong = wrongAttempts + 1
             if (wrong >= MAX_WRONG) {
-                copy(code = "", wrongAttempts = wrong, phase = VerificationPhase.LOCKED, message = VerificationMessage.TOO_MANY_WRONG)
+                copy(wrongAttempts = wrong, phase = VerificationPhase.LOCKED, message = VerificationMessage.TOO_MANY_WRONG)
             } else {
-                copy(code = "", wrongAttempts = wrong, phase = VerificationPhase.INPUT, message = VerificationMessage.MISMATCH)
+                copy(wrongAttempts = wrong, phase = VerificationPhase.INPUT, message = VerificationMessage.MISMATCH)
             }
         }
         CodeError.TOO_MANY_ATTEMPTS ->
-            copy(code = "", phase = VerificationPhase.LOCKED, message = VerificationMessage.TOO_MANY_WRONG)
+            copy(phase = VerificationPhase.LOCKED, message = VerificationMessage.TOO_MANY_WRONG)
         CodeError.EXPIRED ->
-            copy(code = "", expiresAtMs = nowMs, phase = VerificationPhase.INPUT, message = VerificationMessage.EXPIRED)
+            copy(expiresAtMs = nowMs, phase = VerificationPhase.INPUT, message = VerificationMessage.EXPIRED)
     }
 
     /** 네트워크 오류 등 확인 자체가 안 된 경우: 다시 입력할 수 있게 하되, 자동 재전송 루프를 막으려고 칸은 비운다 */

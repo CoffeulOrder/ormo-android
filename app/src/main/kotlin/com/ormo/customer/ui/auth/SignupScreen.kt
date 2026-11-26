@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.draw.alpha
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -177,7 +178,7 @@ private fun EmailStep(
                 error = error,
                 suffix = s.domain?.let { "@$it" },
                 trailing = if (domains?.showsPicker == true) {
-                    { Icon(OrmoIcons.ChevronDown, contentDescription = "학교 메일 선택", tint = Ormo.colors.iconSecondary, modifier = Modifier.size(Size.iconLg)) }
+                    { Icon(OrmoIcons.ChevronDown, contentDescription = "학교 메일 선택", tint = Ormo.colors.iconPrimary, modifier = Modifier.size(Size.iconLg)) }
                 } else {
                     null
                 },
@@ -196,7 +197,7 @@ private fun EmailStep(
 @Composable
 internal fun DomainSheet(domains: List<String>, selected: String?, onSelect: (String) -> Unit, onDismiss: () -> Unit) {
     OrmoBottomSheet(onDismissRequest = onDismiss, title = "학교 메일 주소를 선택해주세요", titleBottomPadding = 0.dp) {
-        Text("학교에서 발급한 메일 주소만 사용할 수 있어요", style = OrmoType.bodyMdRegular, color = Ormo.colors.textSecondary)
+        Text("학교에서 발급한 메일 주소만 사용할 수 있어요", style = OrmoType.bodyMdRegular, color = Ormo.colors.textTertiary) // Figma: Text/Tertiary
         Column(Modifier.padding(top = 31.dp, bottom = Space.s16)) { // Figma: 안내 글자 아래 행 시작, 행 높이 48
             domains.forEach { d ->
                 androidx.compose.foundation.layout.Row(
@@ -234,7 +235,7 @@ private fun NameStep(
             label = "이름",
             // TODO(spec 0.2.3): 허용 글자와 오류 문구는 개발과 확정 필요 — 지금은 이모지·기호를 막는 문구
             error = when (error) {
-                NameRules.Error.INVALID_CHARS -> "이름에는 글자와 숫자만 쓸 수 있어요"
+                NameRules.Error.INVALID_CHARS -> "이름은 한글과 영문만 입력할 수 있어요"
                 NameRules.Error.TOO_LONG -> "이름은 20자까지 입력할 수 있어요"
                 else -> null
             },
@@ -282,19 +283,24 @@ private fun ConsentSheet(ui: SignupUi, vm: SignupViewModel) {
     }
 }
 
-/** 완료 (디자인 0.2.6): '가을님, ORMO에 오신 걸 환영해요'. 모션 종료(2.8초) 후 자동 이동. 알림 권한은 여기서 묻지 않는다 (첫 주문 뒤 4.5.1). */
+/**
+ * 완료 (디자인 0.2.6): 심볼이 떨어지고 김과 조각이 퍼진 뒤(2.2초) 제목 '가을님, ORMO에 오신 걸 환영해요' 가 나타난다. 모션 종료(2.8초) 후 자동 이동.
+ * 모션: Figma 에서 내보낸 Lottie `ormo_cup_confetti`. 알림 권한은 여기서 묻지 않는다 (첫 주문 뒤 4.5.1).
+ */
 @Composable
 private fun DoneStep(name: String) {
     val c = Ormo.colors
-    // Figma 0.2.6: 심볼 100.54×128 이 (137,178), 글자 두 줄은 화면 세로 중앙보다 36 위에 가운데 정렬 (축하 색종이 모션은 아직 없음)
+    var celebrated by remember { mutableStateOf(false) }
+    val titleAlpha by androidx.compose.animation.core.animateFloatAsState(if (celebrated) 1f else 0f, androidx.compose.animation.core.tween(300), label = "welcome-title")
+    // Figma 0.2.6: 글자 두 줄은 화면 세로 중앙보다 36 위에 가운데 정렬
     Box(Modifier.fillMaxSize().background(c.bgDefault)) {
-        OrmoMark(Modifier.align(Alignment.TopCenter).padding(top = 178.dp))
+        com.ormo.customer.ui.auth.OrmoLottie(com.ormo.customer.R.raw.ormo_cup_confetti, align = Alignment.Center, recolor = if (Ormo.colors.isDark) listOf(com.ormo.customer.ui.auth.LottieRecolor("Confetti · Drop", androidx.compose.ui.graphics.Color.White)) else emptyList(), onFinished = { celebrated = true }) // 글자가 세로 중앙 기준이라 모션도 중앙 기준 (화면이 낮아도 서로 겹치지 않게)
         Text(
             "${name}님, \nORMO에 오신 걸 환영해요",
             style = OrmoType.displayXsSemibold,
             color = c.textPrimary,
             textAlign = TextAlign.Center,
-            modifier = Modifier.align(Alignment.Center).offset(y = (-36).dp).semantics { heading() },
+            modifier = Modifier.align(Alignment.Center).offset(y = (-36).dp).alpha(titleAlpha).semantics { heading() },
         )
     }
 }

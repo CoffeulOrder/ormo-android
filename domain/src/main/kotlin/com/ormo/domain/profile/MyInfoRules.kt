@@ -20,7 +20,6 @@ data class MyInfoView(
 enum class LegalDoc { TERMS, PRIVACY }
 
 object MyInfoRules {
-    const val NOTIFICATION_OFF_DESCRIPTION = "꺼져 있어요 · 켜면 픽업 번호를 바로 받아요"
 
     val LOGOUT_CONFIRM = DialogText("로그아웃할까요?", "학교 이메일로 다시 로그인해주세요")
 
@@ -29,7 +28,7 @@ object MyInfoRules {
         name = name.orEmpty(),
         email = email,
         rows = MyInfoRow.entries,
-        notificationRow = NotificationRowView(if (osNotificationsGranted) null else NOTIFICATION_OFF_DESCRIPTION),
+        notificationRow = NotificationRowView(null), // Figma 5.1.1: 권한 설정 행은 메뉴 이름만 — 값(켜짐/꺼짐)이 어떻든 안내 문구를 붙이지 않는다
     )
 
     /**

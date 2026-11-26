@@ -28,14 +28,16 @@ class LiveOrderRulesTest {
         val bar = LiveOrderRules.bar(listOf(order(status = OrderStatus.MAKING)))!!
         assertEquals(2, bar.filledCells)
         assertEquals("음료를 만들고 있어요", bar.title)
+        assertEquals("범석관 카페 · 내 앞에 3건", bar.subtitle) // Figma Flat: 만드는 중에도 내 앞 건수
+        assertEquals(3, bar.aheadCount)
     }
 
     @Test fun `픽업 대기 - 전체 채움과 받을 기한`() {
         val bar = LiveOrderRules.bar(listOf(order(status = OrderStatus.READY, readyAt = at(10))))!!
         assertEquals(3, bar.filledCells)
         assertEquals("음료가 준비됐어요", bar.title)
-        assertEquals("13:30까지 받아주세요", bar.subtitle)
-        assertEquals("주문 현황, 27번, 음료가 준비됐어요, 13:30까지 받아주세요, 버튼", bar.contentDescription)
+        assertEquals("13:30까지 받아 주세요", bar.subtitle)
+        assertEquals("주문 현황, 27번, 음료가 준비됐어요, 13:30까지 받아 주세요, 버튼", bar.contentDescription)
     }
 
     @Test fun `내 앞 건수를 모르면 매장 이름만`() {
@@ -52,6 +54,17 @@ class LiveOrderRulesTest {
         val bar = LiveOrderRules.bar(listOf(a, b, c))!!
         assertEquals("c", bar.orderId)
         assertEquals(2, bar.otherActiveCount)
+    }
+
+    @Test fun `플로팅 버튼 - 진행 중 주문 전부를 먼저 받을 순서로 (맨 앞이 버튼과 가장 가까운 바)`() {
+        val a = order("a", OrderStatus.REQUESTED, placedAt = at(0))
+        val b = order("b", OrderStatus.MAKING, placedAt = at(1))
+        val done = order("x", OrderStatus.COMPLETED, placedAt = at(2))
+        val bars = LiveOrderRules.bars(listOf(a, b, done))
+        assertEquals(listOf("b", "a"), bars.map { it.orderId }) // 끝난 주문은 빠지고, 만드는 중이 먼저
+        assertEquals(1, bars.first().otherActiveCount)
+        assertTrue(LiveOrderRules.bars(emptyList()).isEmpty())
+        assertTrue(LiveOrderRules.bars(listOf(order(status = OrderStatus.REJECTED))).isEmpty())
     }
 
     // ---- 진행 중 알림 (Android 잠금 화면 현황) ----

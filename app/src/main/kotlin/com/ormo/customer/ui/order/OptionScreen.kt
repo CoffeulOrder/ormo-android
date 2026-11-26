@@ -15,6 +15,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -23,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -184,6 +187,8 @@ fun OptionScreen(
     }
     val s = ui.state
     val unavailable = ui.availability as? OrderAvailability.Unavailable
+    // 하단 CTA 는 화면 위에 떠 있다 — 스크롤 내용은 화면 끝까지 이어지고 끝에 CTA 높이만큼만 비운다
+    var ctaHeight by remember { androidx.compose.runtime.mutableStateOf(0.dp) }
 
     Box(Modifier.fillMaxSize().background(c.bgDefault)) {
         Column(Modifier.fillMaxSize()) {
@@ -201,9 +206,8 @@ fun OptionScreen(
                     Column(Modifier.fillMaxWidth().padding(horizontal = Space.pageMargin, vertical = Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
                         Text(s.item.name, style = OrmoType.bodyXlSemibold, color = c.textPrimary)
                         if (s.item.desc.isNotBlank()) Text(s.item.desc, style = OrmoType.bodyMdMedium, color = c.textSecondary)
-                        if (unavailable != null) {
-                            Text(unavailable.message, style = OrmoType.bodyMdSemibold, color = c.textDanger)
-                        } else if (s.soldOut) {
+                        // 영업 중이 아닐 때의 '○○:○○부터 주문할 수 있어요' 안내는 옵션 화면 디자인(2.2.1)에 없어 보이지 않는다 (담기·바로 주문 버튼만 꺼진다)
+                        if (unavailable == null && s.soldOut) {
                             Text("품절된 메뉴예요", style = OrmoType.bodyMdSemibold, color = c.textDanger)
                         }
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -222,17 +226,21 @@ fun OptionScreen(
                     s.item.optionGroups.forEach { group ->
                         GroupSection(group, s, onToggle = { vm.toggle(group, it) })
                     }
-                }
-                val enabled = s.canAdd && unavailable == null
-                BottomCta {
-                    Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
-                        OrmoButton("바로 주문", { vm.add(goCheckout = true) }, Modifier.weight(1f), kind = ButtonKind.WeakBrand, size = ButtonSize.XL, enabled = enabled)
-                        OrmoButton(s.addLabel, { vm.add(goCheckout = false) }, Modifier.widthIn(min = 200.dp), size = ButtonSize.XL, enabled = enabled)
-                    }
+                    Spacer(Modifier.height(ctaHeight))
                 }
             }
         }
-        OrmoSnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter), bottomOffset = 120.dp)
+        if (s != null) {
+            val enabled = s.canAdd && unavailable == null
+            BottomCta(Modifier.align(Alignment.BottomCenter), onHeightChange = { ctaHeight = it }) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+                    // Figma(375): 보조 127 · 주 200 (간격 8). 고정 폭이 아니라 비율로 나눠서 360dp 이하 폰에서도 "바로 주문"이 줄바꿈되지 않게 한다
+                    OrmoButton("바로 주문", { vm.add(goCheckout = true) }, Modifier.weight(127f), kind = ButtonKind.WeakBrand, size = ButtonSize.XL, enabled = enabled)
+                    OrmoButton(s.addLabel, { vm.add(goCheckout = false) }, Modifier.weight(200f), size = ButtonSize.XL, enabled = enabled)
+                }
+            }
+        }
+        OrmoSnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
     }
 }
 

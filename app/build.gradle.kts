@@ -66,6 +66,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.1")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.11.1")
     implementation("androidx.navigation:navigation-compose:2.10.2")
+    // Figma 모션(스플래시 로고·가입 축하·주문 완료·주문 만료)을 Lottie JSON 으로 재생
+    implementation("com.airbnb.android:lottie-compose:6.6.7")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 

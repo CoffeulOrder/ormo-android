@@ -51,6 +51,8 @@ fun OrmoCodeInput(
     enabled: Boolean = true,
     invalid: Boolean = false,
     autoFocus: Boolean = true,
+    /** 입력이 꺼진 모양(회색 칸 + 옅은 테두리 + 옅은 숫자)으로 그릴지. 확인 중에는 입력은 막되 입력 상태 모양을 유지한다 (Figma 0.2.2) */
+    dimmed: Boolean = !enabled,
 ) {
     val c = Ormo.colors
     val interaction = remember { MutableInteractionSource() }
@@ -60,7 +62,8 @@ fun OrmoCodeInput(
 
     BasicTextField(
         value = value,
-        onValueChange = { onValueChange(it.filter { ch -> ch in '0'..'9' }.take(length)) },
+        // 길이 자르기는 도메인(VerificationState)이 한다 — 틀린 코드 위에 새 숫자를 치면 처음부터 다시 입력해야 하므로 여기서는 숫자만 거른다
+        onValueChange = { onValueChange(it.filter { ch -> ch in '0'..'9' }) },
         enabled = enabled,
         singleLine = true,
         interactionSource = interaction,
@@ -79,13 +82,14 @@ fun OrmoCodeInput(
                         val filled = i < value.length
                         // Figma 0.2.2: 입력된 칸 = 흰 바탕 + 옅은 테두리, 아직 빈 칸 = 옅은 회색 채움(테두리 없음), 지금 칸 = 파란 테두리
                         val border = when {
+                            dimmed -> c.borderDefault // Figma 꺼진 칸: Border/Default 1px (숫자는 남긴다)
                             invalid -> c.fillDanger
                             current -> c.fillBrand
-                            filled -> Base.GreyOpacity300
+                            filled -> c.borderStrong
                             else -> Color.Transparent
                         }
                         val bg = when {
-                            !enabled -> c.fillNeutralWeak
+                            dimmed -> c.fillNeutralWeak
                             invalid || current || filled -> c.bgDefault
                             else -> c.fillNeutralWeak
                         }
@@ -95,13 +99,13 @@ fun OrmoCodeInput(
                                 .height(Size.heightXl)
                                 .clip(Shapes.control56)
                                 .background(bg)
-                                .border(if (invalid || current) Size.borderThick else Size.borderThin, border, Shapes.control56),
+                                .border(if (!dimmed && (invalid || current)) Size.borderThick else Size.borderThin, border, Shapes.control56),
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
                                 value.getOrNull(i)?.toString().orEmpty(),
-                                style = OrmoType.displayXsSemibold,
-                                color = if (enabled) c.textPrimary else c.textQuaternary,
+                                style = OrmoType.displaySmSemibold, // Figma: Display sm/Semibold 30/38
+                                color = if (dimmed) c.textQuaternary else c.textPrimary,
                             )
                         }
                     }

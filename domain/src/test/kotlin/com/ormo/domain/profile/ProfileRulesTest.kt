@@ -17,9 +17,9 @@ class MyInfoRulesTest {
         assertEquals("", MyInfoRules.view(null, null, true).name)
     }
 
-    @Test fun `알림이 꺼져 있으면 행에 설명이 붙는다`() {
+    @Test fun `권한 설정 행에는 켜짐 여부와 상관없이 설명이 붙지 않는다`() {
         assertNull(MyInfoRules.view("가을", null, true).notificationRow.description)
-        assertEquals("꺼져 있어요 · 켜면 픽업 번호를 바로 받아요", MyInfoRules.view("가을", null, false).notificationRow.description)
+        assertNull(MyInfoRules.view("가을", null, false).notificationRow.description) // 꺼져 있어도 안내 문구 없음
     }
 
     @Test fun `로그아웃 다이얼로그 문구`() {

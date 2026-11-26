@@ -49,7 +49,7 @@ import com.ormo.domain.auth.VerificationState
 fun codeNoticeText(n: CodeNotice): String = when (n) {
     CodeNotice.NETWORK -> "인터넷 연결을 확인해주세요"
     CodeNotice.OTHER -> "잠시 후 다시 시도해주세요"
-    CodeNotice.DAILY_LIMIT -> "오늘은 인증코드를 더 받을 수 없어요" // TODO(spec 0.2.1): 하루 한도 초과 문구 미정
+    CodeNotice.DAILY_LIMIT -> "인증 코드 요청 횟수를 초과했어요" // Figma 0.2.1
     CodeNotice.TOO_SOON -> "잠시 후에 다시 받을 수 있어요"
 }
 
@@ -140,6 +140,8 @@ fun CodeStep(
                 onValueChange = onCodeChanged,
                 enabled = enabled,
                 invalid = message == VerificationMessage.MISMATCH,
+                // 확인 중(VERIFYING)에는 입력은 막되 6칸이 채워진 입력 모양을 그대로 둔다 (Figma 0.2.2)
+                dimmed = v != null && !enabled && v.phase != VerificationPhase.VERIFYING,
             )
             when (message) {
                 VerificationMessage.MISMATCH -> CodeError("인증코드가 일치하지 않아요")
