@@ -65,20 +65,28 @@ data class VerificationState(
 
     fun onVerified(): VerificationState = copy(phase = VerificationPhase.VERIFIED, message = null)
 
-    fun onFailed(error: CodeError, nowMs: Long): VerificationState = when (error) {
+    fun onFailed(error: CodeError, nowMs: Long, remainingAttempts: Int? = null): VerificationState = when (error) {
         CodeError.MISMATCH -> {
-            val wrong = wrongAttempts + 1
+            // 서버가 센 횟수가 더 많으면(응답을 놓친 요청 등) 서버를 따른다
+            val wrong = maxOf(wrongAttempts + 1, if (remainingAttempts != null) MAX_WRONG - remainingAttempts else 0)
             if (wrong >= MAX_WRONG) {
-                copy(wrongAttempts = wrong, phase = VerificationPhase.LOCKED, message = VerificationMessage.TOO_MANY_WRONG)
+                locked(wrong)
             } else {
                 copy(wrongAttempts = wrong, phase = VerificationPhase.INPUT, message = VerificationMessage.MISMATCH)
             }
         }
-        CodeError.TOO_MANY_ATTEMPTS ->
-            copy(phase = VerificationPhase.LOCKED, message = VerificationMessage.TOO_MANY_WRONG)
+        CodeError.TOO_MANY_ATTEMPTS -> locked(wrongAttempts)
         CodeError.EXPIRED ->
-            copy(expiresAtMs = nowMs, phase = VerificationPhase.INPUT, message = VerificationMessage.EXPIRED)
+            // 서버는 5번째 오답에도 '만료'(410 EV005)로 답한다 → 시간이 남아 있는데 이미 4번 틀렸으면 5번 오답이다
+            if (wrongAttempts >= MAX_WRONG - 1 && !isExpired(nowMs)) {
+                locked(MAX_WRONG)
+            } else {
+                copy(expiresAtMs = nowMs, phase = VerificationPhase.INPUT, message = VerificationMessage.EXPIRED)
+            }
     }
+
+    private fun locked(wrong: Int) =
+        copy(wrongAttempts = wrong, phase = VerificationPhase.LOCKED, message = VerificationMessage.TOO_MANY_WRONG)
 
     /** 네트워크 오류 등 확인 자체가 안 된 경우: 다시 입력할 수 있게 하되, 자동 재전송 루프를 막으려고 칸은 비운다 */
     fun onSubmitAborted(): VerificationState = copy(code = "", phase = VerificationPhase.INPUT)

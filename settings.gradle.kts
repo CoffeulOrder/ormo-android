@@ -12,6 +12,8 @@ dependencyResolutionManagement {
     repositories {
         mavenCentral()
         google()
+        // 포트원 결제 SDK 만 JitPack 에서 받는다 (다른 라이브러리는 여기서 받지 않게 그룹을 좁힌다)
+        maven("https://jitpack.io") { content { includeGroupAndSubgroups("com.github.portone-io") } }
     }
 }
 

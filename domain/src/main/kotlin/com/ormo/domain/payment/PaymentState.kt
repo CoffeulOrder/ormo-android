@@ -13,6 +13,16 @@ data class PlacedOrder(
     val expiresAtMs: Long? = null,
     /** 서버가 품절이라 빼고 접수한 메뉴 id (품절은 막지 않고 빼고 결제, 2.3) */
     val removedMenuIds: List<String> = emptyList(),
+    /** 결제창(포트원)을 여는 데 필요한 값. 서버가 주지 않으면 null (가짜 결제) */
+    val checkout: PgCheckout? = null,
+)
+
+/** 서버가 정한 결제창 설정. [paymentId] 는 결제 시도마다 새로 온다 */
+data class PgCheckout(
+    val storeId: String,
+    val channelKey: String,
+    val paymentId: String,
+    val orderName: String,
 )
 
 /** 서버가 알려주는 결제 결과 (결제 확인 중 3.2.2) */
@@ -109,6 +119,9 @@ data class PaymentState(
 
     fun dismissBlocked(): PaymentState = if (phase is PaymentPhase.Blocked) toIdleKeepingOrder() else this
 
+    /** 3.3.1 [결제수단 변경하기]: 실패 화면을 닫고 주문서로. 주문·실패 횟수는 유지 (다시 누르면 서버 확인부터) */
+    fun dismissFailure(): PaymentState = if (phase is PaymentPhase.Failed) toIdleKeepingOrder() else this
+
     /** 결제창까지 못 갔다 (네트워크·전부 품절 등): 주문서로 돌아가 토스트. 이미 만든 주문은 유지. */
     fun prepareFailed(error: PrepareError): PaymentState =
         if (phase == PaymentPhase.Preparing) copy(phase = PaymentPhase.Idle, prepareError = error) else this
@@ -121,6 +134,10 @@ data class PaymentState(
         val next = if (placed.amount <= 0) PaymentPhase.Confirming() else PaymentPhase.AwaitingPg
         return copy(phase = next, order = placed)
     }
+
+    /** 같은 주문의 결제 시도 정보를 새로 받았다 (결제창을 열기 전에만) */
+    fun withOrder(updated: PlacedOrder): PaymentState =
+        if (phase == PaymentPhase.Preparing && order?.orderId == updated.orderId) copy(order = updated) else this
 
     /** 이미 있던 주문으로 결제창을 연다 (다시 결제하기 / 창을 닫았다 돌아온 뒤 서버 확인에서 아직 안 낸 걸로 확인) */
     fun openPg(): PaymentState =

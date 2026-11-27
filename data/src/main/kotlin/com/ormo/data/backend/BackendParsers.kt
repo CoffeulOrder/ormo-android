@@ -14,6 +14,7 @@ import com.ormo.domain.orders.CancelActor
 import com.ormo.domain.orders.Order
 import com.ormo.domain.orders.OrderLine
 import com.ormo.domain.payment.PaymentStatus
+import com.ormo.domain.payment.PgCheckout
 import com.ormo.domain.store.DayHours
 import com.ormo.domain.store.SellerInfo
 import com.ormo.domain.store.Store
@@ -226,6 +227,18 @@ internal object BackendParsers {
             // TODO(BE): 취소 주체(고객/매장) 필드가 없어, 거절 사유가 있으면 매장, 아니면 고객 취소로 본다
             canceledBy = if (status == OrderStatus.CANCELED) (if (o["rejectReason"].str() != null) CancelActor.STORE else CancelActor.CUSTOMER) else null,
             reason = o["rejectReasonDetail"].str() ?: o["rejectReason"].str(),
+        )
+    }
+
+    /** MS-16 · MS-29 의 `payment` 에서 결제창 설정. 포트원 값이 없으면(가짜 결제) null */
+    fun checkout(payment: JsonElement?): PgCheckout? {
+        val pay = payment as? JsonObject ?: return null
+        val portOne = pay["portOne"] as? JsonObject ?: return null
+        return PgCheckout(
+            storeId = portOne["storeId"].str() ?: return null,
+            channelKey = portOne["channelKey"].str() ?: return null,
+            paymentId = portOne["paymentId"].str() ?: return null,
+            orderName = pay["orderName"].str() ?: "ORMO 주문",
         )
     }
 

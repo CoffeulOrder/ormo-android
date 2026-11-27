@@ -67,7 +67,7 @@ object VerificationCodeRules {
 }
 
 object NameRules {
-    const val MAX_LENGTH = 20
+    const val MAX_LENGTH = 10
 
     enum class Error { EMPTY, TOO_LONG, INVALID_CHARS }
 
@@ -75,7 +75,7 @@ object NameRules {
     fun normalize(raw: String): String = raw.trim()
 
     /**
-     * 1~20자, 공백만은 불가. **한글·영문·띄어쓰기만** 허용 — 숫자·기호·이모지는 불가 (Figma 0.2.3 '이름은 한글과 영문만 입력할 수 있어요').
+     * 한글·영문·가운데 띄어쓰기를 합쳐 1~10자, 공백만은 불가. **한글·영문·띄어쓰기만** 허용 — 숫자·기호·이모지는 불가 (Figma 0.2.3 '이름은 한글과 영문만 입력할 수 있어요').
      * 한글 조합 중에는 호출하지 말 것 (UI 가 조합 완료 후에만 검사).
      */
     fun validate(raw: String): Error? {

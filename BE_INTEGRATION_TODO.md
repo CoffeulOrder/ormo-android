@@ -59,8 +59,8 @@
 - [x] MS-19 고객 취소 `POST /orders/{id}/cancel` (요청 본문 필수값 미확인 → 빈 본문)
 - [x] MS-28 결제·환불 상태 `GET /orders/{id}/payment`
 - [x] DEV-1 개발용 가짜 결제 확정 (DEBUG 빌드에서만 사용)
-- [ ] **MS-27 결제 승인** `POST /payments/confirm` — PortOne 전환 필요
-- [ ] **MS-29 결제 다시 시도** `POST /orders/{id}/payment-attempts` — PortOne 전환 필요
+- [x] MS-27 결제 승인 `POST /payments/confirm` — 실서버 미시험
+- [x] MS-29 결제 다시 시도 `POST /orders/{id}/payment-attempts` — 실서버 미시험
 - [ ] **TW-1 푸시 토큰 등록** `PUT /devices/push-token` — BE PR #12 계약 확정 대기
 
 ---
@@ -74,8 +74,11 @@
 - [ ] DBA 더미데이터 적용 환경에서 화면 시험 (개발 프로필·FAKE 결제·이미지 base-url 설정 필요, ID 는 `Long`)
 
 ### 2-2. 결제 (출시를 막는 항목)
-- [ ] PortOne Android SDK 게이트웨이 구현 (지금 릴리스 빌드는 결제 불가 게이트웨이)
-- [ ] MS-27 승인 호출, MS-29 재시도 연결
+- [x] PortOne Android SDK 게이트웨이 구현 (`com.github.portone-io:android-sdk:0.2.3`, 서버가 `portOne` 값을 주면 결제창을 연다). 가짜 채널 키로 결제창 호출·실패 처리까지만 확인, **실제 채널 결제는 미시험**
+- [x] MS-29 결제창 다시 열기 (같은 paymentId, `OPEN_CHECKOUT` 일 때만) — 실서버 미시험
+- [x] MS-27 승인 호출 `{orderId, paymentId}` (BE `90b356e` 기준) — 실서버 미시험
+- [ ] 실제 결제 시험 전에 채널이 **테스트 채널**인지 BE 에 확인
+- [ ] 릴리스(R8) 빌드에서 결제창 확인
 - [ ] 결제수단 목록을 고정값(`FAKE_PAYMENT_METHODS`)에서 실제 수단으로 교체
 - [ ] 결제창에서 앱이 죽었다가 돌아왔을 때 이어가기를 PortOne 환경에서 실검증
 - [ ] PortOne 전환 후 앱 확인·웹훅(X-03) 실검증
@@ -119,7 +122,7 @@
 ## 3. BE 에 요청·확인할 것
 
 - [ ] `catalog.json`(요청·응답 상세) 전달 — 저장해 둔 가이드 HTML 에는 카드 목록만 있음
-- [ ] MS-17 목록 항목 모양, `filter` 값
+- [x] MS-17 목록 항목 모양, `filter` 값 — `ALL`(기본, 만료만 제외)·`ACTIVE`·`HISTORY` (BE 코드 확인). 앱은 홈 `ACTIVE`, 내 주문 `HISTORY` 사용
 - [ ] MS-19 취소 요청 본문 필수값
 - [ ] MS-28 `payment.status` 값 목록
 - [ ] 영업시간 `dayOfWeek` 범위, 옵션 `type` 값

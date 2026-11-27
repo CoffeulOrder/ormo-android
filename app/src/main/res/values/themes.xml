@@ -2,4 +2,10 @@
 <resources>
     <!-- 화면은 전부 Compose 이므로 창(Window) 테마만 둔다. 색·글꼴은 Compose 테마(M0 이후)에서 정한다. -->
     <style name="Theme.Ormo" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- 포트원 결제창: 흰 바탕 + 어두운 상태 표시줄 아이콘 -->
+    <style name="Theme.Ormo.Payment" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:windowBackground">@android:color/white</item>
+        <item name="android:statusBarColor">@android:color/white</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
 </resources>

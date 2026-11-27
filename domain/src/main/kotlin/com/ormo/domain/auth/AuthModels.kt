@@ -78,7 +78,8 @@ data class UserProfile(val name: String, val email: String?, val schoolName: Str
 
 /** 인증코드 확인 실패: 코드 문제(틀림·만료·횟수 초과)이거나 확인 자체가 안 된 경우 */
 sealed interface VerifyCodeFailure {
-    data class Code(val error: CodeError) : VerifyCodeFailure
+    /** [remainingAttempts]: 서버가 알려 준 남은 시도 횟수 (화면에는 보이지 않고, 오답 횟수를 서버와 맞추는 데 쓴다) */
+    data class Code(val error: CodeError, val remainingAttempts: Int? = null) : VerifyCodeFailure
     data object Network : VerifyCodeFailure
     data object Other : VerifyCodeFailure
 }

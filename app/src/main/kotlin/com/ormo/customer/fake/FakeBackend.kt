@@ -30,6 +30,7 @@ class FakeBackend(private val latencyMs: Long = 500) {
     private val users = mutableMapOf("kim@eulji.ac.kr" to User("가을", "abc12345"))
     private val failCounts = mutableMapOf<String, Int>()
     private val sendCounts = mutableMapOf<String, Int>()
+    private val wrongCodes = mutableMapOf<String, Int>()
     private var currentEmail: String? = null
 
     val auth: AuthApi = object : AuthApi {
@@ -40,12 +41,19 @@ class FakeBackend(private val latencyMs: Long = 500) {
             val n = (sendCounts[email] ?: 0) + 1
             sendCounts[email] = n
             if (n > 5) throw AppError.Api(429, "DAILY_LIMIT_EXCEEDED")
+            wrongCodes.remove(email) // 새 코드는 처음부터
             return SendCodeResult(expiresInSec = 300, resendAfterSec = 60)
         }
 
         override suspend fun verifyEmailCode(email: String, purpose: VerifyPurpose, code: String): String {
             delay(latencyMs)
-            if (code != "123456") throw AppError.Api(400, "CODE_INVALID")
+            // 실서버처럼: 1~4번째 오답은 EV004, 5번째는 코드를 폐기하고 만료와 같은 410 EV005
+            if ((wrongCodes[email] ?: 0) >= 5) throw AppError.Api(410, "EV005")
+            if (code != "123456") {
+                val wrong = (wrongCodes[email] ?: 0) + 1
+                wrongCodes[email] = wrong
+                throw if (wrong >= 5) AppError.Api(410, "EV005") else AppError.Api(400, "EV004")
+            }
             return "verified-$email"
         }
 

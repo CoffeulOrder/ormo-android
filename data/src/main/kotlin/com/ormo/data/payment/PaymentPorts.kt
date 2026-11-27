@@ -4,6 +4,7 @@ import com.ormo.core.Outcome
 import com.ormo.domain.order.OrderDraft
 import com.ormo.domain.order.PaymentMethod
 import com.ormo.domain.payment.PaymentStatus
+import com.ormo.domain.payment.PgCheckout
 import com.ormo.domain.payment.PlacedOrder
 import com.ormo.domain.store.StoreStatus
 
@@ -29,9 +30,26 @@ interface OrderApi {
     suspend fun placeOrder(draft: OrderDraft, idempotencyKey: String): Outcome<PlacedOrder, PlaceOrderFailure>
 
     suspend fun paymentStatus(orderId: String): PaymentStatus
+
+    /**
+     * 결제창에서 돌아온 뒤 서버에 승인을 요청한다 (MS-27). 서버가 PG 에서 결제를 확인해야 주문이 접수되므로,
+     * 결제창 설정이 있는 주문은 [paymentStatus] 대신 이것으로 묻는다. 네트워크 오류는 예외로 던진다.
+     */
+    suspend fun confirm(orderId: String, paymentId: String): PaymentStatus = paymentStatus(orderId)
+
+    /** 결제창을 다시 열어도 되는지 서버에 묻는다 (MS-29). 서버가 거절하면 예외 — 그때는 결제창을 열지 않는다 */
+    suspend fun reopen(orderId: String): PaymentRetry = PaymentRetry.Open(null)
 }
 
-data class PgRequest(val orderId: String, val amount: Int, val method: PaymentMethod)
+sealed interface PaymentRetry {
+    /** 결제창을 연다. [checkout] 이 null 이면 갖고 있던 설정으로 */
+    data class Open(val checkout: PgCheckout?) : PaymentRetry
+
+    /** 이미 결제돼 접수된 주문 — 결제창을 열지 않는다 */
+    data object AlreadyPlaced : PaymentRetry
+}
+
+data class PgRequest(val orderId: String, val amount: Int, val method: PaymentMethod, val checkout: PgCheckout? = null)
 
 sealed interface PgResult {
     /** PG 가 승인했다고 알림 — 최종 확정은 서버 확인으로 한다 */

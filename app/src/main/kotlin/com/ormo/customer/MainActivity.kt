@@ -24,6 +24,7 @@ class MainActivity : ComponentActivity() {
         // 3버튼 내비게이션에서 시스템이 따로 까는 막을 끄고, 앱이 직접 반투명 막을 깐다 (NavigationBarScrim)
         if (android.os.Build.VERSION.SDK_INT >= 29) window.isNavigationBarContrastEnforced = false
         val container = (application as OrmoApp).container
+        container.portOne.attach(this) // 결제창 결과를 받을 준비는 화면이 시작되기 전에 해야 한다
         setContent {
             OrmoTheme {
                 Box(Modifier.fillMaxSize()) {

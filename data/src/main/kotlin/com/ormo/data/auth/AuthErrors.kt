@@ -33,7 +33,7 @@ object AuthErrors {
 
     private val CODE_INVALID = setOf("CODE_INVALID", "EV004")
     private val CODE_EXPIRED = setOf("CODE_EXPIRED", "EV005")
-    // BE: 확인 5회 실패하면 코드가 폐기되어 EV005(410) 로 온다 → 만료와 같은 안내 ("다시 요청해주세요"). EV007 은 메일 발송 실패(503)다.
+    // BE: 확인 5회 실패하면 코드가 폐기되어 EV005(410) 로 온다 — 만료와 구분하는 것은 `VerificationState` 가 한다. EV007 은 메일 발송 실패(503)다.
     private val CODE_TOO_MANY = setOf("TOO_MANY_ATTEMPTS")
 
     private val VERIFICATION_INVALID = setOf("VERIFICATION_INVALID", "EV008")
@@ -73,7 +73,8 @@ object AuthErrors {
         return when {
             code in CODE_TOO_MANY || api.status == 429 -> VerifyCodeFailure.Code(CodeError.TOO_MANY_ATTEMPTS)
             code in CODE_EXPIRED || api.status == 410 -> VerifyCodeFailure.Code(CodeError.EXPIRED)
-            code in CODE_INVALID || api.status == 400 -> VerifyCodeFailure.Code(CodeError.MISMATCH)
+            code in CODE_INVALID || api.status == 400 ->
+                VerifyCodeFailure.Code(CodeError.MISMATCH, retryAfterSec(api.body, "remainingAttempts")) // 양의 정수 필드 읽기
             else -> VerifyCodeFailure.Other
         }
     }

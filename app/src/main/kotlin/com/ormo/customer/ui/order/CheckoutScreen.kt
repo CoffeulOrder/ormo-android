@@ -103,15 +103,12 @@ fun CheckoutScreen(
     val snackbar = remember { OrmoSnackbarState() }
     var scrollToPayment by remember { mutableStateOf(0) }
     val store by vm.store.collectAsState()
-    var failureDismissed by remember { mutableStateOf(false) }
     val now = rememberNowMs()
     val phase = payment.phase
 
     LaunchedEffect(Unit) { vm.messages.collect { snackbar.show(it, SnackbarDurations.PARTIAL_FAILURE) } }
     // 결제창을 닫고 돌아와 있는 동안 만료 시각이 지났는지 본다 (3.3.2)
     LaunchedEffect(now / 1000) { vm.checkExpiry() }
-    // 새 실패가 올 때마다 실패 화면을 다시 보인다
-    LaunchedEffect(phase) { if (phase !is PaymentPhase.Failed) failureDismissed = false }
 
     // 삭제 되돌리기 스낵바 4초 (2.3)
     val undo = checkout.activeUndo(now)
@@ -161,17 +158,20 @@ fun CheckoutScreen(
     // 결제 확인 중(3.2.2)·준비 중·결제창에서는 뒤로가기를 막는다.
     // 단, 확인이 계속 안 될 때는 뒤로가기로 주문서에 나갈 수 있다 (giveUpWaiting 은 그때만 동작 — 갇히지 않게).
     BackHandler(enabled = payment.backBlocked) { vm.giveUpWaiting() }
+    // 결제 실패 화면에서 휴대폰 뒤로가기 = 실패 화면만 닫고 장바구니로 (그대로 나가면 다시 들어올 때 실패 화면이 또 뜬다)
+    BackHandler(enabled = phase is PaymentPhase.Failed) { vm.dismissFailure() }
 
     Box(Modifier.fillMaxSize().background(c.bgDefault)) {
         when {
             phase is PaymentPhase.Confirming || phase == PaymentPhase.Succeeded || holding -> ConfirmingScreen(
                 leaving = phase !is PaymentPhase.Confirming && phase != PaymentPhase.Succeeded,
             )
-            phase is PaymentPhase.Failed && !failureDismissed -> ResultScreen(
+            phase is PaymentPhase.Failed -> ResultScreen(
                 title = PaymentMessages.failed(phase.code).title,
                 body = PaymentMessages.failed(phase.code).body,
                 primary = "다시 결제하기" to vm::pay,
-                secondary = "결제수단 변경하기" to { failureDismissed = true; scrollToPayment++ },
+                // 닫았다는 것을 결제 상태에 남긴다 (화면에만 두면 장바구니를 나갔다 들어올 때 실패 화면이 다시 뜬다)
+                secondary = "결제수단 변경하기" to { vm.dismissFailure(); scrollToPayment++ },
             )
             phase == PaymentPhase.Exhausted -> ResultScreen(
                 title = PaymentMessages.EXHAUSTED.title,

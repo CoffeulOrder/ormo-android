@@ -52,6 +52,7 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        isCoreLibraryDesugaringEnabled = true // 포트원 SDK 가 요구
     }
 }
 
@@ -70,6 +71,9 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.10.2")
     // Figma 모션(스플래시 로고·가입 축하·주문 완료·주문 만료)을 Lottie JSON 으로 재생
     implementation("com.airbnb.android:lottie-compose:6.6.7")
+    // 결제창: 포트원 V2 안드로이드 SDK (github.com/portone-io/android-sdk)
+    implementation("com.github.portone-io:android-sdk:0.2.3")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 
