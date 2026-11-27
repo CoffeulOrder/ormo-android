@@ -128,6 +128,7 @@ class CheckoutViewModel(
     fun pollOnce() { appScope.launch { payments.pollOnce() } }
     fun giveUpWaiting() = payments.giveUpWaiting()
     fun dismissBlocked() = payments.dismissBlocked()
+    fun dismissFailure() = payments.dismissFailure()
     fun clearPrepareError() = payments.clearPrepareError()
     /** 5번 초과·만료 뒤 주문서로 돌아온다: 새 주문이므로 취소 불가 동의는 다시 받는다 (주문마다 다시 체크, 2.3) */
     fun leaveTerminal() {

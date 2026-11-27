@@ -84,7 +84,7 @@ class InputRulesTest {
         assertNull(NameRules.validate("가을"))
         assertNull(NameRules.validate("가 을"))
         assertNull(NameRules.validate("Autumn"))
-        assertNull(NameRules.validate("가".repeat(20)))
+        assertNull(NameRules.validate("가".repeat(10)))
     }
 
     @Test fun `이름 앞뒤 공백 제거 가운데 띄어쓰기 유지`() {
@@ -96,8 +96,15 @@ class InputRulesTest {
         assertEquals(NameRules.Error.EMPTY, NameRules.validate("   "))
     }
 
-    @Test fun `이름이 21자면 TOO_LONG`() {
-        assertEquals(NameRules.Error.TOO_LONG, NameRules.validate("가".repeat(21)))
+    @Test fun `이름이 11자면 TOO_LONG`() {
+        assertEquals(NameRules.Error.TOO_LONG, NameRules.validate("가".repeat(11)))
+    }
+
+    @Test fun `한글 영문 가운데 공백을 합쳐 10자까지 - 앞뒤 공백은 세지 않는다`() {
+        assertNull(NameRules.validate("가을 Autumn"))           // 2 + 1 + 6 = 9
+        assertNull(NameRules.validate("가을 Autumns"))          // 10
+        assertEquals(NameRules.Error.TOO_LONG, NameRules.validate("가을  Autumns")) // 11 (공백 2개)
+        assertNull(NameRules.validate("  " + "가".repeat(10) + "  "))
     }
 
     @Test fun `숫자는 INVALID_CHARS - 한글과 영문만`() {
@@ -112,7 +119,7 @@ class InputRulesTest {
     }
 
     @Test fun `이모지는 한 글자로 센다`() {
-        // 20자 + 이모지 1개 = 21 code points → TOO_LONG (UTF-16 길이로 세면 22)
-        assertEquals(NameRules.Error.TOO_LONG, NameRules.validate("가".repeat(20) + "😀"))
+        // 10자 + 이모지 1개 = 11 code points → TOO_LONG (UTF-16 길이로 세면 12)
+        assertEquals(NameRules.Error.TOO_LONG, NameRules.validate("가".repeat(10) + "😀"))
     }
 }

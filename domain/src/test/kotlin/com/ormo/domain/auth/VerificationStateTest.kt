@@ -127,4 +127,21 @@ class VerificationStateTest {
         assertEquals(60, resent.resendRemainingSeconds(100_000))
         assertTrue(resent.inputEnabled(100_000))
     }
+
+    @Test fun `서버가 5번째 오답에 만료를 돌려줘도 5번 오답 잠김으로 보인다`() {
+        var s = start
+        repeat(4) { s = s.onCodeChanged("111111", 0).onSubmitStarted().onFailed(CodeError.MISMATCH, 0) }
+        s = s.onCodeChanged("111111", 10_000).onSubmitStarted().onFailed(CodeError.EXPIRED, 10_000)
+        assertEquals(VerificationPhase.LOCKED, s.phase)
+        assertEquals(VerificationMessage.TOO_MANY_WRONG, s.displayMessage(10_000))
+        assertTrue(!s.isExpired(10_000)) // 남은 시간은 그대로
+    }
+
+    @Test fun `서버가 센 오답 횟수가 더 많으면 따라간다`() {
+        // 서버 기준 남은 1번 = 4번 틀림 → 다음 만료 응답은 5번 오답
+        val s = start.onCodeChanged("111111", 0).onSubmitStarted().onFailed(CodeError.MISMATCH, 0, remainingAttempts = 1)
+        assertEquals(4, s.wrongAttempts)
+        val locked = s.onCodeChanged("222222", 0).onSubmitStarted().onFailed(CodeError.EXPIRED, 0)
+        assertEquals(VerificationPhase.LOCKED, locked.phase)
+    }
 }

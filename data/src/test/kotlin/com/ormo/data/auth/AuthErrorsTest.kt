@@ -109,6 +109,8 @@ class AuthErrorsRealBeTest {
 
     @Test fun `인증코드 - EV004 틀림, EV005 만료(5회 실패 포함), 그 밖의 400 은 틀림`() {
         assertEquals(VerifyCodeFailure.Code(CodeError.MISMATCH), AuthErrors.verifyCode(api(400, "EV004")))
+        val body = kotlinx.serialization.json.Json.parseToJsonElement("""{"code":"EV004","data":{"remainingAttempts":3}}""")
+        assertEquals(VerifyCodeFailure.Code(CodeError.MISMATCH, 3), AuthErrors.verifyCode(AppError.Api(400, "EV004", body)))
         assertEquals(VerifyCodeFailure.Code(CodeError.EXPIRED), AuthErrors.verifyCode(api(410, "EV005")))
         // EV007 은 메일 발송 실패(503)이지 '횟수 초과'가 아니다
         assertEquals(VerifyCodeFailure.Other, AuthErrors.verifyCode(api(503, "EV007")))

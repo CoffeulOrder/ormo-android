@@ -126,7 +126,8 @@ fun CodeStep(
         },
     ) {
         // 제목 아래 남은 시간 (이메일 주소 줄은 Figma 에 없음)
-        if (v != null && v.isExpired(now)) {
+        // 5번 오답으로 잠긴 동안에는 시간이 다 돼도 '만료' 문구로 바꾸지 않는다 (Figma 0.2.2 5번 틀림: 남은 시간 + 잠김 문구)
+        if (v != null && v.isExpired(now) && v.phase != VerificationPhase.LOCKED) {
             Text("입력 시간이 만료됐어요", style = OrmoType.bodyMdRegular, color = c.textDanger, modifier = Modifier.padding(bottom = 6.dp))
         } else if (v != null) {
             Text("남은 시간 ${formatCountdown(v.remainingSeconds(now))}", style = OrmoType.bodyMdRegular, color = c.textSecondary, modifier = Modifier.padding(bottom = 6.dp))

@@ -5,6 +5,7 @@ import com.ormo.data.payment.PaymentMethodStore
 import com.ormo.data.payment.PendingPayment
 import com.ormo.data.payment.PendingPaymentStore
 import com.ormo.domain.order.PaymentMethod
+import com.ormo.domain.payment.PgCheckout
 import com.ormo.domain.payment.PlacedOrder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -37,6 +38,10 @@ class PrefsPendingPaymentStore(context: Context) : PendingPaymentStore {
                     fingerprint = (o["fingerprint"] as JsonPrimitive).content,
                     expiresAtMs = (o["expiresAtMs"] as? JsonPrimitive)?.longOrNull,
                     removedMenuIds = (o["removed"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.orEmpty(),
+                    checkout = (o["checkout"] as? JsonObject)?.let { c ->
+                        fun text(name: String) = (c[name] as JsonPrimitive).content
+                        PgCheckout(text("storeId"), text("channelKey"), text("paymentId"), text("orderName"))
+                    },
                 ),
                 key = (o["key"] as JsonPrimitive).content,
                 failedCount = (o["failedCount"] as JsonPrimitive).intOrNull ?: 0,
@@ -56,6 +61,17 @@ class PrefsPendingPaymentStore(context: Context) : PendingPaymentStore {
             put("removed", JsonArray(pending.order.removedMenuIds.map { JsonPrimitive(it) }))
             put("key", pending.key)
             put("failedCount", pending.failedCount)
+            pending.order.checkout?.let { c ->
+                put(
+                    "checkout",
+                    buildJsonObject {
+                        put("storeId", c.storeId)
+                        put("channelKey", c.channelKey)
+                        put("paymentId", c.paymentId)
+                        put("orderName", c.orderName)
+                    },
+                )
+            }
         }
         prefs.edit().putString("v", o.toString()).apply()
     }

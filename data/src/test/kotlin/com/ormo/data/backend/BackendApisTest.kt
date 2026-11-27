@@ -237,6 +237,46 @@ class BackendApisTest {
         assertEquals("true", b["withdrawalLimitAgreed"].toString())
     }
 
+    @Test fun `주문 생성·결제 다시 시도 - 포트원 결제창 설정을 읽는다`() = runBlocking {
+        val payment = """{"attemptNo":1,"pgProvider":"INICIS_V2","pgOrderId":"CF-1","orderName":"바닐라라떼","amount":8000,"clientKey":null,
+            "portOne":{"storeId":"store-a","channelKey":"channel-b","paymentId":"CF-1","currency":"CURRENCY_KRW"}}"""
+        routes = { ok("""{"orderId":77,"totalAmount":8000,"expiresAt":null,"payment":$payment}""", 201) }
+        val api = RemoteOrderApi(client) { "1" }
+        val placed = (api.placeOrder(draft, "k") as Outcome.Ok).value
+        assertEquals(com.ormo.domain.payment.PgCheckout("store-a", "channel-b", "CF-1", "바닐라라떼"), placed.checkout)
+
+        seen.clear()
+        routes = { ok("""{"orderId":77,"status":"PENDING_PAYMENT","action":"OPEN_CHECKOUT","payment":$payment}""") }
+        val retry = api.reopen("77") as com.ormo.data.payment.PaymentRetry.Open
+        assertEquals("CF-1", retry.checkout!!.paymentId)
+        assertEquals("POST", seen.single().method)
+        assertEquals("/orders/77/payment-attempts", path(seen.single()))
+
+        routes = { ok("""{"orderId":77,"status":"REQUESTED","action":"VIEW_ORDER","payment":null}""") }
+        assertEquals(com.ormo.data.payment.PaymentRetry.AlreadyPlaced, api.reopen("77"))
+        routes = { err(409, "PY012") }
+        assertEquals("PY012", assertFailsWith<AppError.Api> { runBlocking { api.reopen("77") } }.code)
+    }
+
+    @Test fun `결제 승인 - 주문 번호와 결제번호를 보내고 오류 코드로 결과를 정한다`() = runBlocking {
+        val api = RemoteOrderApi(client) { "1" }
+        routes = { ok("""{"orderId":77,"orderCode":"CF-1","status":"REQUESTED","pickupNo":3,"payment":{"status":"APPROVED","amount":8000}}""") }
+        assertEquals(PaymentStatus.Paid, api.confirm("77", "CF-1"))
+        val req = seen.single()
+        assertEquals("/payments/confirm", path(req))
+        assertEquals("""{"orderId":77,"paymentId":"CF-1"}""", req.body.readUtf8())
+
+        routes = { err(409, "PY009") }
+        assertEquals(PaymentStatus.Pending, api.confirm("77", "CF-1"))
+        routes = { err(503, "PY010") }
+        assertEquals(PaymentStatus.Pending, api.confirm("77", "CF-1"))
+        routes = { err(409, "OD009") }
+        assertEquals(PaymentStatus.Expired, api.confirm("77", "CF-1"))
+        // 그 밖의 오류는 저장된 상태를 읽는다
+        routes = { r -> if (r.method == "POST") err(409, "PY008") else ok("""{"orderId":77,"orderStatus":"PENDING_PAYMENT","payment":{"status":"FAILED"}}""") }
+        assertEquals(PaymentStatus.Failed("FAILED"), api.confirm("77", "CF-1"))
+    }
+
     @Test fun `주문 생성 - 영업 안 함, 품절, 그 밖의 오류`() = runBlocking {
         val api = RemoteOrderApi(client) { "1" }
         routes = { err(409, "OD001", "지금은 주문을 받지 않아요") }
@@ -303,12 +343,30 @@ class BackendApisTest {
         val page = api.fetchHistoryPage(null, 20)
         assertEquals(listOf("77", "78"), page.orders.map { it.id })
         assertEquals("1", page.nextCursor)
-        assertTrue(seen.any { path(it) == "/orders?page=0&size=20" })
+        assertTrue(seen.any { path(it) == "/orders?page=0&size=20&filter=HISTORY" })
         // 진행 중만
         assertEquals(listOf("77"), api.fetchActive().map { it.id })
+        assertTrue(seen.any { path(it) == "/orders?page=0&size=50&filter=ACTIVE" })
         // 다음 페이지가 없으면 커서 null
         routes = { ok("""{"content":[],"page":1,"size":20,"hasNext":false}""") }
         assertNull(api.fetchHistoryPage("1", 20).nextCursor)
+    }
+
+    @Test fun `주문 목록 - 결제하지 않은 주문(placedAt 없음)은 빼고 나머지를 보여준다`() = runBlocking {
+        routes = { r ->
+            when {
+                path(r).startsWith("/orders?") -> ok(
+                    """{"content":[{"orderId":81,"status":"PENDING_PAYMENT","placedAt":null},
+                        {"orderId":77,"status":"REQUESTED","placedAt":"2026-11-25T10:00:00+09:00"}],"page":0,"size":20,"hasNext":false}""",
+                )
+                path(r) == "/orders/77" -> ok(detail)
+                else -> err(500, "C999")
+            }
+        }
+        val api = RemoteMyOrdersApi(client)
+        assertEquals(listOf("77"), api.fetchHistoryPage(null, 20).orders.map { it.id })
+        assertEquals(listOf("77"), api.fetchActive().map { it.id })
+        assertTrue(seen.none { path(it) == "/orders/81" })
     }
 
     @Test fun `주문 취소 - 요청 뒤 상세를 다시 받는다, 이미 수락됐으면 409 그대로`() = runBlocking {

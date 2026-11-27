@@ -6,6 +6,7 @@ import com.ormo.data.orders.MyOrdersApi
 import com.ormo.data.orders.OrderPage
 import com.ormo.data.payment.OrderApi
 import com.ormo.data.payment.PaymentGateway
+import com.ormo.data.payment.PaymentRetry
 import com.ormo.data.payment.PgRequest
 import com.ormo.data.payment.PgResult
 import com.ormo.data.payment.PlaceOrderFailure
@@ -13,6 +14,7 @@ import com.ormo.data.remote.ApiClient
 import com.ormo.data.remote.AppError
 import com.ormo.data.remote.id
 import com.ormo.data.remote.intValue
+import com.ormo.data.remote.str
 import com.ormo.domain.model.MenuItem
 import com.ormo.domain.model.MenuPayload
 import com.ormo.domain.model.Cafe
@@ -22,6 +24,7 @@ import com.ormo.domain.order.OrderDraft
 import com.ormo.domain.order.PickupMethod
 import com.ormo.domain.orders.Order
 import com.ormo.domain.payment.PaymentStatus
+import com.ormo.domain.payment.PgCheckout
 import com.ormo.domain.payment.PlacedOrder
 import com.ormo.domain.store.Store
 import com.ormo.data.store.StoreDirectory
@@ -32,6 +35,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
@@ -196,26 +200,58 @@ class RemoteOrderApi(private val client: ApiClient, private val currentStoreId: 
                 amount = total,
                 fingerprint = draft.fingerprint,
                 expiresAtMs = BackendParsers.instant(o["expiresAt"])?.toEpochMilli(),
+                checkout = BackendParsers.checkout(o["payment"]),
             ),
         )
     }
 
     override suspend fun paymentStatus(orderId: String): PaymentStatus =
         BackendParsers.paymentStatus(client.get("/orders/$orderId/payment"))
+
+    /** MS-27 `POST /payments/confirm {orderId, paymentId}`. 성공 응답 = 주문 접수. 다시 보내면 서버가 현재 상태를 돌려준다 */
+    override suspend fun confirm(orderId: String, paymentId: String): PaymentStatus {
+        val body = buildJsonObject {
+            put("orderId", orderId.toLongOrNull()?.let { JsonPrimitive(it) } ?: JsonPrimitive(orderId))
+            put("paymentId", paymentId)
+        }
+        return try {
+            client.post("/payments/confirm", body)
+            PaymentStatus.Paid
+        } catch (e: AppError.Api) {
+            when (e.code) {
+                "OD009" -> PaymentStatus.Expired // 만료된 뒤 결제됨 → 서버가 환불을 요청해 둔다
+                "PY009", "PY010" -> PaymentStatus.Pending // 아직 결제 확인 안 됨 / PG 조회 지연
+                else -> paymentStatus(orderId) // 그 밖에는 저장된 상태를 읽어 판단 (성공으로 보지 않는다)
+            }
+        }
+    }
+
+    /** MS-29. 같은 paymentId 를 유지한다. `OPEN_CHECKOUT` 일 때만 결제창을 연다 */
+    override suspend fun reopen(orderId: String): PaymentRetry {
+        val o = client.post("/orders/$orderId/payment-attempts") as? JsonObject ?: throw AppError.Schema("order.retry")
+        return when (o["action"].str()) {
+            "VIEW_ORDER" -> PaymentRetry.AlreadyPlaced
+            "OPEN_CHECKOUT" -> PaymentRetry.Open(BackendParsers.checkout(o["payment"]) ?: throw AppError.Schema("order.retry.payment"))
+            else -> throw AppError.Schema("order.retry.action")
+        }
+    }
 }
 
 /**
  * 내 주문(MS-17·18·19). 목록 항목의 모양이 문서에서 확인되지 않아(TODO(BE)) **상세와 같은 모양이면 그대로**, 아니면 상세(MS-18)로 다시 받는다.
- * 목록은 페이지 방식 → 커서는 다음 페이지 번호. `filter` 값을 몰라 보내지 않고 앱에서 거른다.
+ * 목록은 페이지 방식 → 커서는 다음 페이지 번호.
+ * `filter`: `ACTIVE`(접수 대기~픽업 대기, 홈 현황) · `HISTORY`(완료·취소·거절, 내 주문). 보내지 않으면 `ALL` 인데 만료만 빼고 주므로
+ * 결제하지 않은 주문(`PENDING_PAYMENT`, `placedAt` 없음)까지 섞여 온다.
  */
 class RemoteMyOrdersApi(private val client: ApiClient, private val activePageSize: Int = 50) : MyOrdersApi {
 
     override suspend fun fetchOrder(orderId: String): Order = BackendParsers.order(client.get("/orders/$orderId"))
 
-    private suspend fun page(page: Int, size: Int): Pair<List<Order>, Boolean> {
-        val o = client.get("/orders?page=$page&size=$size") as? JsonObject ?: throw AppError.Schema("orders")
+    private suspend fun page(page: Int, size: Int, filter: String): Pair<List<Order>, Boolean> {
+        val o = client.get("/orders?page=$page&size=$size&filter=$filter") as? JsonObject ?: throw AppError.Schema("orders")
         val content = o["content"] as? JsonArray ?: throw AppError.Schema("orders.content")
-        val orders = content.map { item ->
+        // 접수된 적 없는 주문(`placedAt: null`)은 보여줄 것이 없다 — 그 하나 때문에 목록 전체가 실패하지 않게 뺀다
+        val orders = content.filterNot { (it as? JsonObject)?.get("placedAt") is JsonNull }.map { item ->
             if (BackendParsers.hasDetail(item)) BackendParsers.order(item)
             else fetchOrder((item as? JsonObject)?.get("orderId").id() ?: throw AppError.Schema("orders.content.orderId"))
         }
@@ -223,11 +259,11 @@ class RemoteMyOrdersApi(private val client: ApiClient, private val activePageSiz
         return orders to hasNext
     }
 
-    override suspend fun fetchActive(): List<Order> = page(0, activePageSize).first.filter { it.status.isActive }
+    override suspend fun fetchActive(): List<Order> = page(0, activePageSize, "ACTIVE").first.filter { it.status.isActive }
 
     override suspend fun fetchHistoryPage(cursor: String?, limit: Int): OrderPage {
         val p = cursor?.toIntOrNull() ?: 0
-        val (orders, hasNext) = page(p, limit)
+        val (orders, hasNext) = page(p, limit, "HISTORY")
         return OrderPage(orders, if (hasNext) (p + 1).toString() else null)
     }
 

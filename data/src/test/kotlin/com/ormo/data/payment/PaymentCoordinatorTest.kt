@@ -32,6 +32,21 @@ private class FakeOrderApi : OrderApi {
     var statuses = ArrayDeque<Any>() // PaymentStatus 또는 Exception
     var statusCalls = 0
     var placeGate: CompletableDeferred<Unit>? = null
+    var reopenResult: Any = PaymentRetry.Open(null) // PaymentRetry 또는 Exception
+    var reopenCalls = 0
+    val confirmCalls = mutableListOf<Pair<String, String>>()
+    var confirmResult: PaymentStatus = PaymentStatus.Paid
+
+    override suspend fun confirm(orderId: String, paymentId: String): PaymentStatus {
+        confirmCalls += orderId to paymentId
+        return confirmResult
+    }
+
+    override suspend fun reopen(orderId: String): PaymentRetry {
+        reopenCalls++
+        (reopenResult as? Exception)?.let { throw it }
+        return reopenResult as PaymentRetry
+    }
 
     override suspend fun placeOrder(draft: OrderDraft, idempotencyKey: String): Outcome<PlacedOrder, PlaceOrderFailure> {
         placeCalls += draft to idempotencyKey
@@ -239,6 +254,71 @@ class PaymentCoordinatorTest {
         assertEquals(1, f.api.placeCalls.size)
         assertEquals(listOf(card, other), f.gateway.requests.map { it.method })
         assertEquals(0, f.api.statusCalls - 2) // 실패 후 재시도는 상태 확인을 한 번 더 하지 않는다 (확인 루프 2번만)
+    }
+
+    private val checkout = com.ormo.domain.payment.PgCheckout("store", "channel", "pay-1", "라떼")
+
+    private fun portOne(vararg pg: PgResult) = fixture(statuses = listOf(PaymentStatus.Pending), pg = pg.toList()).also {
+        it.api.placeResult = Outcome.Ok(PlacedOrder("o1", 8000, "", null, checkout = checkout))
+    }
+
+    @Test fun `포트원 - 결제창에서 돌아오면 승인 요청으로 확정한다`() = blocking {
+        val f = portOne(PgResult.Approved("tx"))
+        f.coordinator.pay(draft, card)
+        assertEquals(PaymentPhase.Succeeded, f.phase)
+        assertEquals(listOf("o1" to "pay-1"), f.api.confirmCalls)
+        assertEquals(0, f.api.statusCalls)
+    }
+
+    @Test fun `포트원 - 실패 뒤에는 서버가 허락해야 같은 결제번호로 다시 연다`() = blocking {
+        val f = portOne(PgResult.Failed("E"), PgResult.Approved("tx"))
+        f.api.confirmResult = PaymentStatus.Pending // PY009: 결제 확인 안 됨
+        f.coordinator.pay(draft, card)
+        assertEquals(PaymentPhase.Failed("E"), f.phase)
+
+        f.api.reopenResult = PaymentRetry.Open(checkout)
+        f.api.confirmResult = PaymentStatus.Paid
+        f.coordinator.pay(draft, card)
+        assertEquals(PaymentPhase.Succeeded, f.phase)
+        assertEquals(1, f.api.reopenCalls)
+        assertEquals(listOf("pay-1", "pay-1"), f.gateway.requests.map { it.checkout!!.paymentId })
+    }
+
+    @Test fun `포트원 - 다시 열기를 서버가 거절하면 결제창을 열지 않는다`() = blocking {
+        val f = portOne(PgResult.Canceled)
+        f.coordinator.pay(draft, card)
+        f.api.reopenResult = AppError.Api(409, "PY012")
+        f.coordinator.pay(draft, card)
+        assertEquals(PaymentPhase.Idle, f.phase)
+        assertEquals(PrepareError.OTHER, f.coordinator.state.value.prepareError)
+        assertEquals(1, f.gateway.requests.size)
+
+        f.api.reopenResult = AppError.Api(409, "OD009")
+        f.coordinator.pay(draft, card)
+        assertEquals(PaymentPhase.Expired, f.phase)
+        assertEquals(1, f.gateway.requests.size)
+    }
+
+    @Test fun `포트원 - 이미 접수된 주문이면 결제창 없이 성공`() = blocking {
+        val f = portOne(PgResult.Canceled)
+        f.coordinator.pay(draft, card)
+        f.api.reopenResult = PaymentRetry.AlreadyPlaced
+        f.coordinator.pay(draft, card)
+        assertEquals(PaymentPhase.Succeeded, f.phase)
+        assertEquals(1, f.gateway.requests.size)
+    }
+
+    @Test fun `실패 화면을 닫으면 주문서 상태가 되고, 주문과 실패 횟수는 유지한다`() = blocking {
+        val f = fixture(statuses = listOf(PaymentStatus.Failed("E"), PaymentStatus.Failed("E"), PaymentStatus.Paid), pg = listOf(PgResult.Failed("E"), PgResult.Approved("tx")))
+        f.coordinator.pay(draft, card)
+        f.coordinator.dismissFailure()
+        assertEquals(PaymentPhase.Idle, f.phase)
+        assertEquals(1, f.coordinator.state.value.failedCount)
+
+        f.coordinator.pay(draft, card)
+        assertEquals(PaymentPhase.Succeeded, f.phase)
+        assertEquals(1, f.api.placeCalls.size) // 같은 주문
+        assertEquals(2, f.gateway.requests.size)
     }
 
     @Test fun `5번 실패하면 더 이상 결제할 수 없다`() = blocking {

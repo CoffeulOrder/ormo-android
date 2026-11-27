@@ -68,7 +68,7 @@ class VerificationController(
                     onVerified(r.value)
                 }
                 is Outcome.Fail -> when (val f = r.failure) {
-                    is VerifyCodeFailure.Code -> _state.update { it?.onFailed(f.error, clock()) }
+                    is VerifyCodeFailure.Code -> _state.update { it?.onFailed(f.error, clock(), f.remainingAttempts) }
                     VerifyCodeFailure.Network -> { _state.update { it?.onSubmitAborted() }; _notice.value = CodeNotice.NETWORK }
                     VerifyCodeFailure.Other -> { _state.update { it?.onSubmitAborted() }; _notice.value = CodeNotice.OTHER }
                 }

@@ -236,7 +236,7 @@ private fun NameStep(
             // TODO(spec 0.2.3): 허용 글자와 오류 문구는 개발과 확정 필요 — 지금은 이모지·기호를 막는 문구
             error = when (error) {
                 NameRules.Error.INVALID_CHARS -> "이름은 한글과 영문만 입력할 수 있어요"
-                NameRules.Error.TOO_LONG -> "이름은 20자까지 입력할 수 있어요"
+                NameRules.Error.TOO_LONG -> "이름은 ${NameRules.MAX_LENGTH}자까지 입력할 수 있어요"
                 else -> null
             },
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),

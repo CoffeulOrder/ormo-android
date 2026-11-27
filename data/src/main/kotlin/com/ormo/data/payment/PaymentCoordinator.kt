@@ -68,13 +68,11 @@ class PaymentCoordinator(
             if (order == null) {
                 if (!place(draft)) return
                 order = _state.value.order!!
-            } else if (!wasFailed) {
-                // 창을 닫고 돌아온 뒤 다시 누름: 그 사이 결제가 됐는지 서버에 먼저 확인
-                when (checkBeforeRetry(order)) {
-                    Next.STOP -> return
-                    Next.PAY -> update { it.openPg() }
-                }
             } else {
+                // 창을 닫고 돌아온 뒤 다시 누름: 그 사이 결제가 됐는지 서버에 먼저 확인
+                if (!wasFailed && checkBeforeRetry(order) == Next.STOP) return
+                // 결제창을 다시 열기 전에는 서버가 PG 상태를 확인하고 허락해야 한다 (MS-29)
+                if (order.checkout != null) order = askToReopen(order) ?: return
                 update { it.openPg() }
             }
             var pgFailure: PgResult.Failed? = null
@@ -96,6 +94,38 @@ class PaymentCoordinator(
     }
 
     private enum class Next { PAY, STOP }
+
+    /** 다시 열어도 되면 그 주문, 아니면 상태를 정리하고 null. **서버가 거절하면 결제창을 열지 않는다** */
+    private suspend fun askToReopen(order: PlacedOrder): PlacedOrder? {
+        val retry = try {
+            orders.reopen(order.orderId)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: com.ormo.data.remote.AppError.Network) {
+            update { it.prepareFailed(PrepareError.NETWORK) }
+            return null
+        } catch (e: com.ormo.data.remote.AppError.Api) {
+            if (e.code == "OD009") { update { it.expired() }; finish() } else update { it.prepareFailed(PrepareError.OTHER) }
+            return null
+        } catch (e: Exception) {
+            update { it.prepareFailed(PrepareError.OTHER) }
+            return null
+        }
+        return when (retry) {
+            PaymentRetry.AlreadyPlaced -> { update { it.reconfirm() }; update { it.paid() }; finish(); null }
+            is PaymentRetry.Open -> {
+                val next = retry.checkout?.let { order.copy(checkout = it) } ?: order
+                persist(update { it.withOrder(next) })
+                next
+            }
+        }
+    }
+
+    /** 결제 결과 묻기: 결제창 설정이 있으면 승인 요청(MS-27), 없으면 상태 조회 */
+    private suspend fun ask(order: PlacedOrder): PaymentStatus {
+        val checkout = order.checkout ?: return orders.paymentStatus(order.orderId)
+        return orders.confirm(order.orderId, checkout.paymentId)
+    }
 
     /** 새 주문 만들기. 성공하면 true (이후 진행), 아니면 상태를 정리하고 false */
     private suspend fun place(draft: OrderDraft): Boolean {
@@ -149,7 +179,7 @@ class PaymentCoordinator(
     /** 결제창을 연다. 결제창이 **실패라고 알려 온** 경우에만 그 실패를 돌려준다 (예외로 결과를 모르는 경우는 null) */
     private suspend fun openGateway(order: PlacedOrder, method: PaymentMethod): PgResult.Failed? {
         val result = try {
-            gateway.pay(PgRequest(order.orderId, order.amount, method))
+            gateway.pay(PgRequest(order.orderId, order.amount, method, order.checkout))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -170,7 +200,7 @@ class PaymentCoordinator(
     private suspend fun confirmLoop(order: PlacedOrder, pgFailure: PgResult.Failed? = null) {
         for (i in 0 until maxPolls) {
             val status = try {
-                orders.paymentStatus(order.orderId)
+                ask(order)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -206,7 +236,7 @@ class PaymentCoordinator(
             s.order.takeIf { (s.phase as? PaymentPhase.Confirming)?.checkFailed == true }
         } ?: return
         val status = try {
-            orders.paymentStatus(order.orderId)
+            ask(order)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -256,6 +286,8 @@ class PaymentCoordinator(
     }
 
     fun dismissBlocked() { update { it.dismissBlocked() } }
+
+    fun dismissFailure() { update { it.dismissFailure() } }
 
     fun clearPrepareError() { update { it.clearPrepareError() } }
 

@@ -3,6 +3,7 @@ package com.ormo.customer
 import android.content.Context
 import com.ormo.core.SessionResetter
 import com.ormo.customer.fake.FakeBackend
+import com.ormo.customer.payment.PortOneGateway
 import com.ormo.customer.fake.FakeMenuApi
 import com.ormo.customer.fake.FakePaymentServer
 import com.ormo.customer.session.PrefsPaymentMethodStore
@@ -57,17 +58,28 @@ class AppContainer(context: Context) {
 
     // ---- 주문·결제 (M4) ----
     // BE·PG 가 없어 가짜 서버와 가짜 PG 창을 쓴다 (FakePaymentServer). 결제 진행은 앱 범위 하나 — 화면이 사라져도 결제 확인은 이어진다.
-    // 실서버 모드(-Pormo.realBackend=true)에서는 매장·메뉴·주문·결제 상태·내 주문이 BE 로 간다. 결제창은 개발 서버 전용 DEV-1 로 확정하고,
-    // 실제 PG(PortOne)는 환경 전환 뒤 연결한다 (릴리스는 결제 불가 게이트웨이).
+    // 실서버 모드(-Pormo.realBackend=true)에서는 매장·메뉴·주문·결제 상태·내 주문이 BE 로 간다.
+    // 서버가 주문에 포트원 설정을 주면 포트원 결제창을 연다. 주지 않으면(가짜 결제 서버) DEBUG 는 DEV-1, 릴리스는 결제 불가.
     private val realCatalog = !BuildConfig.USE_FAKE_BACKEND
     private val storeDirectory: com.ormo.data.store.StoreDirectory =
         if (realCatalog) com.ormo.data.backend.RemoteStoreDirectory(client!!) else FakeStoreDirectory()
     val fakePayments = FakePaymentServer(FakeStoreDirectory(), currentStoreId = { cart.storeId })
     private val pendingPayments = PrefsPendingPaymentStore(context)
+    val portOne: PortOneGateway = PortOneGateway(
+        fallback = if (!realCatalog) {
+            com.ormo.data.backend.UnavailablePaymentGateway
+        } else if (BuildConfig.DEBUG) {
+            com.ormo.data.backend.DevPaymentGateway(client!!)
+        } else {
+            com.ormo.data.backend.UnavailablePaymentGateway
+        },
+        customer = { auth.profile.value },
+        log = httpLog,
+    )
     val payments = if (realCatalog) {
         PaymentCoordinator(
             com.ormo.data.backend.RemoteOrderApi(client!!) { cart.storeId },
-            if (BuildConfig.DEBUG) com.ormo.data.backend.DevPaymentGateway(client) else com.ormo.data.backend.UnavailablePaymentGateway,
+            portOne,
             pendingPayments,
         )
     } else {
@@ -132,7 +144,7 @@ class AppContainer(context: Context) {
         ),
     )
 
-    val auth = AuthRepository(
+    val auth: AuthRepository = AuthRepository(
         authApi, sessions, store, resetter, appScope,
         // 탈퇴 때만: 계정별로 남겨 둔 기기 데이터를 지운다 (로그아웃에서는 남긴다, PR M3·M5)
         onWithdrawn = { key ->
